@@ -136,6 +136,8 @@
 		"DEFAULT_TITLE": "Notification",
 		"EMPTY_SET": "Empty set!",
 		"ERROR": "Error",
+		"FAILED_TO_LAUNCH_APP": "Failed to launch",
+		"FAILED_TO_STOP_APP": "Failed to stop",
 		"FIXING_FLOOR_IN_X_SECS": "Fixing floor in {SECONDS} second(s)...",
 		"LAST_EXISTING_SET": "This is the last existing set.",
 		"LETS_ADD_OVERLAYS": "Let's add some overlays from the taskbar!",
