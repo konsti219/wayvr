@@ -17,6 +17,7 @@ pub mod openxr_bindings_schema;
 pub mod openxr_controller_profiles;
 pub mod overlays;
 pub mod palette;
+pub mod steam;
 pub mod timestep;
 pub mod windowing;
 

@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use wayvr_ipc::packet_client::WvrProcessLaunchParams;
+use wayvr_ipc::packet_client::{WvrPinLaunchParams, WvrProcessLaunchParams};
 use wlx_common::{
     astr_containers::AStrMap,
     config::{
@@ -182,6 +182,7 @@ pub struct AutoSettings {
     pub keyboard_middle_click_mode: AltModifier,
     pub autostart_apps: Vec<WvrProcessLaunchParams>,
     pub pinned_apps: Vec<PinnedApp>,
+    pub pinned_games: Vec<WvrPinLaunchParams>,
     pub handsfree_pointer: HandsfreePointer,
     pub handsfree_alt_tab: HandsfreeAltTab,
     pub language: Option<Language>,
@@ -257,6 +258,7 @@ pub fn save_settings(config: &GeneralConfig) -> anyhow::Result<()> {
         keyboard_middle_click_mode: config.keyboard_middle_click_mode,
         autostart_apps: config.autostart_apps.clone(),
         pinned_apps: config.pinned_apps.clone(),
+        pinned_games: config.pinned_games.clone(),
         handsfree_pointer: config.handsfree_pointer,
         handsfree_alt_tab: config.handsfree_alt_tab,
         language: config.language,

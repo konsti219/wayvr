@@ -15,6 +15,10 @@ wlx-common = { path = "../wlx-common" }
 anyhow.workspace = true
 chrono.workspace = true
 glam = { workspace = true, features = ["mint", "serde"] }
+image = { version = "0.25.9", default-features = false, features = [
+    "jpeg",
+    "png",
+] }
 log.workspace = true
 rust-embed.workspace = true
 serde = { workspace = true, features = ["rc"] }

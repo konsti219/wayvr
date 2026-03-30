@@ -4,7 +4,7 @@ use chrono::Offset;
 use idmap::IdMap;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, EnumProperty, EnumString, VariantArray, VariantNames};
-use wayvr_ipc::packet_client::WvrProcessLaunchParams;
+use wayvr_ipc::packet_client::{WvrPinLaunchParams, WvrProcessLaunchParams};
 use wgui::drawing::{self, HsvColor};
 
 use crate::{
@@ -504,6 +504,9 @@ pub struct GeneralConfig {
 
 	#[serde(default)]
 	pub pinned_apps: Vec<PinnedApp>,
+
+	#[serde(default)]
+	pub pinned_games: Vec<WvrPinLaunchParams>,
 
 	#[serde(default)]
 	pub last_set: u32,

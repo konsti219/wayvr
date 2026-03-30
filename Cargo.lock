@@ -1403,6 +1403,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "glam",
+ "image",
  "keyvalues-parser",
  "log",
  "lz4_flex",

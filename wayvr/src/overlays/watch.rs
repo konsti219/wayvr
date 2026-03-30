@@ -58,6 +58,7 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
         let name = WATCH_NAME;
         move |panel, app, event_data| {
             let mut elems_changed = panel.state.overlay_list.on_notify(
+                app,
                 &mut panel.layout,
                 &mut panel.parser_state,
                 &event_data,

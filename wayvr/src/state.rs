@@ -2,6 +2,7 @@ use glam::Affine3A;
 use idmap::IdMap;
 use serde::{Deserialize, Serialize};
 use smallvec::{SmallVec, smallvec};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -295,6 +296,8 @@ impl AppState {
 pub struct AppSession {
     pub config: GeneralConfig,
     pub config_dirty: bool,
+    pub pinned_stop_clicks: HashMap<String, u8>,
+    pub pinned_runtime_signature: u64,
 
     #[cfg(feature = "pipewire")]
     pub pw_tokens: PwTokenMap,
@@ -332,6 +335,8 @@ impl AppSession {
             config_dirty: false,
             #[cfg(feature = "pipewire")]
             pw_tokens,
+            pinned_stop_clicks: HashMap::new(),
+            pinned_runtime_signature: 0,
         }
     }
 }

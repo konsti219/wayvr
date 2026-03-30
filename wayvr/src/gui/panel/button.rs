@@ -1,5 +1,7 @@
 use std::{
     cell::RefCell,
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
     process::{Child, Command, Stdio},
     rc::Rc,
     str::FromStr,
@@ -21,12 +23,12 @@ use wgui::{
     widget::EventResult,
     windowing::context_menu::{Blueprint, ContextMenu, OpenParams},
 };
-use wlx_common::{config::HandsfreePointer, overlays::ToastTopic};
+use wlx_common::{config::HandsfreePointer, overlays::ToastTopic, steam};
 
 use crate::{
     RESTART, RUNNING,
     backend::{
-        task::{OverlayTask, PlayspaceTask, SpawnPos, TaskType, ToggleMode},
+        task::{GlobalChange, OverlayTask, PlayspaceTask, SpawnPos, TaskType, ToggleMode},
         wayvr::process::KillSignal,
     },
     gui::panel::{log_cmd_invalid_arg, log_cmd_missing_arg},
@@ -37,6 +39,30 @@ use crate::{
 };
 
 pub const BUTTON_EVENT_SUFFIX: &[&str] = &["", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+pub(crate) fn pinned_runtime_signature(app: &AppState) -> u64 {
+    let running = steam::list_running_games().unwrap_or_default();
+
+    let mut hasher = DefaultHasher::new();
+    app.session.config.pinned_games.len().hash(&mut hasher);
+
+    for pin in &app.session.config.pinned_games {
+        pin.app_id.hash(&mut hasher);
+
+        let is_running = running.iter().any(|g| g.app_id == pin.app_id);
+        is_running.hash(&mut hasher);
+
+        let stop_stage = app
+            .session
+            .pinned_stop_clicks
+            .get(&pin.app_id)
+            .copied()
+            .unwrap_or(0);
+        stop_stage.hash(&mut hasher);
+    }
+
+    hasher.finish()
+}
 
 #[allow(clippy::type_complexity)]
 pub const BUTTON_EVENTS: [(
@@ -519,6 +545,105 @@ pub(super) fn setup_custom_button<S: 'static>(
                         Ok(EventResult::Consumed)
                     })
                 }
+                "::WvrPinnedLaunch" => {
+                    let arg = args.next().unwrap_or_default();
+                    let Ok(pin_idx) = arg.parse::<usize>() else {
+                        let msg = format!("expected integer, found \"{arg}\"");
+                        log_cmd_invalid_arg(parser_state, TAG, name, command, &msg);
+                        return;
+                    };
+
+                    Box::new(move |_common, data, app, _| {
+                        if !test_button(data) || !test_duration(&button, app) {
+                            return Ok(EventResult::Pass);
+                        }
+
+                        let Some(pin) = app.session.config.pinned_games.get(pin_idx).cloned()
+                        else {
+                            return Ok(EventResult::Consumed);
+                        };
+
+                        let running = steam::list_running_games()
+                            .unwrap_or_default()
+                            .iter()
+                            .any(|g| g.app_id == pin.app_id);
+
+                        if running {
+                            let stage = app
+                                .session
+                                .pinned_stop_clicks
+                                .get(&pin.app_id)
+                                .copied()
+                                .unwrap_or(0);
+
+                            let res = match stage {
+                                0 => {
+                                    app.session.pinned_stop_clicks.insert(pin.app_id, 1);
+                                    Ok(())
+                                }
+                                1 => {
+                                    app.session.pinned_stop_clicks.insert(pin.app_id.clone(), 2);
+                                    steam::stop(&pin.app_id, false)
+                                }
+                                _ => steam::stop(&pin.app_id, true),
+                            };
+
+                            if let Err(e) = res {
+                                log::error!("Could not stop app: {e:?}");
+                                Toast::new(ToastTopic::System, "Failed to stop".into(), pin.name)
+                                    .with_timeout(3.0)
+                                    .with_sound(true)
+                                    .submit(app);
+                            }
+
+                            app.tasks
+                                .enqueue(TaskType::Overlay(OverlayTask::GlobalChange(
+                                    GlobalChange::Settings,
+                                )));
+
+                            return Ok(EventResult::Consumed);
+                        }
+
+                        app.session.pinned_stop_clicks.remove(&pin.app_id);
+
+                        if let Err(e) = steam::launch(&pin.app_id) {
+                            log::error!("Could not launch pinned app: {e:?}");
+                            Toast::new(ToastTopic::System, "Failed to launch".into(), pin.name)
+                                .with_timeout(3.0)
+                                .with_sound(true)
+                                .submit(app);
+                        }
+
+                        Ok(EventResult::Consumed)
+                    })
+                }
+                "::WvrPinnedRemove" => {
+                    let arg = args.next().unwrap_or_default();
+                    let Ok(pin_idx) = arg.parse::<usize>() else {
+                        let msg = format!("expected integer, found \"{arg}\"");
+                        log_cmd_invalid_arg(parser_state, TAG, name, command, &msg);
+                        return;
+                    };
+
+                    Box::new(move |_common, data, app, _| {
+                        if !test_button(data) || !test_duration(&button, app) {
+                            return Ok(EventResult::Pass);
+                        }
+
+                        if pin_idx >= app.session.config.pinned_games.len() {
+                            return Ok(EventResult::Consumed);
+                        }
+
+                        app.session.config.pinned_games.remove(pin_idx);
+                        app.session.config_dirty = true;
+                        app.tasks
+                            .enqueue(TaskType::Overlay(OverlayTask::GlobalChange(
+                                GlobalChange::Settings,
+                            )));
+
+                        Ok(EventResult::Consumed)
+                    })
+                }
                 "::EditToggle" => Box::new(move |_common, data, app, _| {
                     if !test_button(data) || !test_duration(&button, app) {
                         return Ok(EventResult::Pass);
@@ -645,6 +770,33 @@ pub(super) fn setup_custom_button<S: 'static>(
                         return Ok(EventResult::Pass);
                     }
 
+                    // Stop all running Steam games before shutting down
+                    if let Ok(running) = wlx_common::steam::list_running_games() {
+                        for game in running {
+                            let _ = wlx_common::steam::stop(&game.app_id, false);
+                        }
+                    }
+                    RUNNING.store(false, Ordering::Relaxed);
+                    Ok(EventResult::Consumed)
+                }),
+                "::ShutdownDisconnect" => Box::new(move |_common, data, app, _| {
+                    if !test_button(data) || !test_duration(&button, app) {
+                        return Ok(EventResult::Pass);
+                    }
+
+                    // Attempt to run wivrnctl disconnect before shutting down
+                    let _ = std::process::Command::new("wivrnctl")
+                        .arg("disconnect")
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn();
+
+                    // Stop all running Steam games before shutting down
+                    if let Ok(running) = wlx_common::steam::list_running_games() {
+                        for game in running {
+                            let _ = wlx_common::steam::stop(&game.app_id, false);
+                        }
+                    }
                     RUNNING.store(false, Ordering::Relaxed);
                     Ok(EventResult::Consumed)
                 }),

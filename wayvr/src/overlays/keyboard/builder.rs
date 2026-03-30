@@ -2,7 +2,9 @@ use std::{rc::Rc, time::Duration};
 
 use crate::{
     app_misc,
+    backend::task::{GlobalChange, OverlayTask, TaskType},
     gui::{
+        panel::button::pinned_runtime_signature,
         panel::{GuiPanel, NewGuiPanelParams, apply_custom_command},
         timer::GuiTimer,
     },
@@ -80,6 +82,28 @@ pub(super) fn create_keyboard_panel(
         .parser_state
         .get_widget_id("keyboard_root")
         .context("Element with id 'keyboard_root' not found; keyboard.xml may be out of date.")?;
+
+    panel.add_event_listener(
+        root,
+        EventListenerKind::InternalStateChange,
+        Box::new(move |_common, data, app, _state| {
+            if let event::CallbackMetadata::Custom(signal) = data.metadata
+                && signal == 1
+            {
+                let sig = pinned_runtime_signature(app);
+                if app.session.pinned_runtime_signature != sig {
+                    app.session.pinned_runtime_signature = sig;
+                    app.tasks
+                        .enqueue(TaskType::Overlay(OverlayTask::GlobalChange(
+                            GlobalChange::Settings,
+                        )));
+                }
+            }
+            Ok(EventResult::Pass)
+        }),
+    );
+
+    app.session.pinned_runtime_signature = pinned_runtime_signature(app);
 
     let has_altgr = keymap.as_ref().is_some_and(|m| XkbKeymap::has_altgr(m));
 
@@ -280,6 +304,7 @@ pub(super) fn create_keyboard_panel(
         let name = "kbd";
         move |panel, app, event_data| {
             let mut elems_changed = panel.state.overlay_list.on_notify(
+                app,
                 &mut panel.layout,
                 &mut panel.parser_state,
                 &event_data,
@@ -339,6 +364,9 @@ pub(super) fn create_keyboard_panel(
     panel
         .timers
         .push(GuiTimer::new(Duration::from_millis(100), 0));
+    panel
+        .timers
+        .push(GuiTimer::new(Duration::from_millis(1000), 1));
 
     app_misc::process_layout_result(
         app,
