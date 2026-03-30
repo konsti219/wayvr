@@ -1,6 +1,7 @@
 use glam::Affine3A;
 use idmap::IdMap;
 use smallvec::{SmallVec, smallvec};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use wgui::log::LogErr;
@@ -217,6 +218,8 @@ impl AppState {
 pub struct AppSession {
     pub config: GeneralConfig,
     pub config_dirty: bool,
+    pub pinned_stop_clicks: HashMap<String, u8>,
+    pub pinned_runtime_signature: u64,
 
     pub toast_topics: IdMap<ToastTopic, ToastDisplayMethod>,
 }
@@ -241,6 +244,8 @@ impl AppSession {
             config,
             toast_topics,
             config_dirty: false,
+            pinned_stop_clicks: HashMap::new(),
+            pinned_runtime_signature: 0,
         }
     }
 }

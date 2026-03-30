@@ -108,7 +108,20 @@
   <!-- An app with a single icon. -->
   <template name="App">
     <Button macro="button_style" id="overlay_${idx}" tooltip_str="${name}" _context_name="${name}" _press_left="::ContextMenuOpen menu_app" _press_right="::OverlayToggle ${name}">  
-      <sprite width="38" height="38" color="~color_text" src_ext="${icon}" />
+      <sprite width="38" height="38" color="~color_text" src="${icon_builtin}" src_ext="${icon}" />
+    </Button>
+  </template>
+
+  <blueprint name="menu_pinned_app">
+    <context_menu>
+      <cell translation="APP_LAUNCHER.LAUNCH" _press="::WvrPinnedLaunch ${idx}" />
+      <cell text="Unpin" _press="::WvrPinnedRemove ${idx}" _press2="::ContextMenuClose" />
+    </context_menu>
+  </blueprint>
+
+  <template name="PinnedApp">
+    <Button macro="button_style" id="pinned_${idx}" tooltip_str="${name}" _context_idx="${idx}" _press_left="::WvrPinnedLaunch ${idx}" _press_right="::ContextMenuOpen menu_pinned_app">
+      <sprite width="38" height="38" color="~color_text" src="${icon_builtin}" src_ext="${icon}" />
     </Button>
   </template>
 

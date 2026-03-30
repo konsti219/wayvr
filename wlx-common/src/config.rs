@@ -4,10 +4,13 @@ use chrono::Offset;
 use idmap::IdMap;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, EnumProperty, EnumString, VariantArray};
-use wayvr_ipc::packet_client::WvrProcessLaunchParams;
+use wayvr_ipc::packet_client::{WvrPinLaunchParams, WvrProcessLaunchParams};
 
 use crate::{
-	astr_containers::{AStrMap, AStrSet}, locale::{self}, overlays::{BackendAttribValue, ToastDisplayMethod, ToastTopic}, windowing::OverlayWindowState
+	astr_containers::{AStrMap, AStrSet},
+	locale::{self},
+	overlays::{BackendAttribValue, ToastDisplayMethod, ToastTopic},
+	windowing::OverlayWindowState,
 };
 
 pub type PwTokenMap = AStrMap<String>;
@@ -137,8 +140,6 @@ fn def_theme_path() -> Arc<str> {
 const fn def_max_height() -> u16 {
 	1440
 }
-
-
 
 #[derive(Deserialize, Serialize)]
 pub struct GeneralConfig {
@@ -303,6 +304,9 @@ pub struct GeneralConfig {
 
 	#[serde(default)]
 	pub autostart_apps: Vec<WvrProcessLaunchParams>,
+
+	#[serde(default)]
+	pub pinned_apps: Vec<WvrPinLaunchParams>,
 
 	#[serde(default)]
 	pub last_set: u32,

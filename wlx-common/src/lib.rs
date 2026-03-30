@@ -11,5 +11,6 @@ pub mod desktop_finder;
 mod handle;
 pub mod locale;
 pub mod overlays;
+pub mod steam;
 pub mod timestep;
 pub mod windowing;

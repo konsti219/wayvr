@@ -32,6 +32,13 @@ pub struct WvrProcessLaunchParams {
 	pub userdata: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WvrPinLaunchParams {
+	pub name: String,
+	pub app_id: String,
+	pub icon: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WlxHapticsParams {
 	pub intensity: f32,

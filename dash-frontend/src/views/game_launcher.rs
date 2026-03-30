@@ -4,6 +4,7 @@ use crate::{
 	frontend::{FrontendTask, FrontendTasks, SoundType},
 	util::{
 		cached_fetcher::{self, CoverArt},
+		pinning,
 		steam_utils::{self, AppID, AppManifest},
 	},
 	views::game_cover,
@@ -19,11 +20,13 @@ use wgui::{
 	widget::{ConstructEssentials, label::WidgetLabel},
 };
 use wlx_common::async_executor::AsyncExecutor;
+use wlx_common::dash_interface::BoxDashInterface;
 
 #[derive(Clone)]
 enum Task {
 	FillAppDetails(cached_fetcher::AppDetailsJSONData),
 	SetCoverArt(Rc<CoverArt>),
+	TogglePinned,
 	Launch,
 }
 
@@ -34,6 +37,7 @@ pub struct Params<'a> {
 	pub layout: &'a mut Layout,
 	pub parent_id: WidgetID,
 	pub frontend_tasks: &'a FrontendTasks,
+	pub is_pinned: bool,
 	pub on_launched: Box<dyn Fn()>,
 }
 pub struct View {
@@ -46,6 +50,9 @@ pub struct View {
 	game_cover_view_common: game_cover::ViewCommon,
 	view_cover: game_cover::View,
 	app_id: AppID,
+	app_name: String,
+	id_label_pin: WidgetID,
+	pinned: bool,
 }
 
 impl View {
@@ -82,8 +89,11 @@ impl View {
 
 		let id_cover_art_parent = state.get_widget_id("cover_art_parent")?;
 		let btn_launch = state.fetch_component_as::<ComponentButton>("btn_launch")?;
+		let btn_pin = state.fetch_component_as::<ComponentButton>("btn_pin")?;
+		let id_label_pin = state.get_widget_id("label_pin")?;
 
 		tasks.handle_button(&btn_launch, Task::Launch);
+		tasks.handle_button(&btn_pin, Task::TogglePinned);
 
 		let view_cover = game_cover::View::new(game_cover::Params {
 			ess: &mut ConstructEssentials {
@@ -101,7 +111,7 @@ impl View {
 			scale: 1.5,
 		})?;
 
-		Ok(Self {
+		let out = Self {
 			state,
 			tasks,
 			on_launched: params.on_launched,
@@ -109,10 +119,22 @@ impl View {
 			game_cover_view_common: game_cover::ViewCommon::new(params.globals.clone()),
 			view_cover,
 			app_id: params.manifest.app_id.clone(),
-		})
+			app_name: params.manifest.name,
+			id_label_pin,
+			pinned: params.is_pinned,
+		};
+
+		out.set_pin_button_label(params.layout)?;
+
+		Ok(out)
 	}
 
-	pub fn update(&mut self, layout: &mut Layout) -> anyhow::Result<()> {
+	pub fn update<T>(
+		&mut self,
+		layout: &mut Layout,
+		interface: &mut BoxDashInterface<T>,
+		data: &mut T,
+	) -> anyhow::Result<()> {
 		loop {
 			let tasks = self.tasks.drain();
 			if tasks.is_empty() {
@@ -121,6 +143,7 @@ impl View {
 			for task in tasks {
 				match task {
 					Task::FillAppDetails(details) => self.action_fill_app_details(layout, details)?,
+					Task::TogglePinned => self.action_toggle_pinned(layout, interface, data),
 					Task::Launch => self.action_launch(),
 					Task::SetCoverArt(cover_art) => {
 						let _ = self
@@ -132,6 +155,53 @@ impl View {
 		}
 
 		Ok(())
+	}
+
+	fn set_pin_button_label(&self, layout: &mut Layout) -> anyhow::Result<()> {
+		let mut c = layout.start_common();
+		{
+			let mut common = c.common();
+			let mut label = common.state.widgets.cast_as::<WidgetLabel>(self.id_label_pin)?;
+			let text = if self.pinned { "Unpin" } else { "Pin" };
+			label.set_text(&mut common, Translation::from_raw_text(text));
+		}
+		c.finish()?;
+		Ok(())
+	}
+
+	fn action_toggle_pinned<T>(&mut self, layout: &mut Layout, interface: &mut BoxDashInterface<T>, data: &mut T) {
+		if self.pinned {
+			let pins = interface.pinned_apps(data);
+			if pinning::remove_pin_by_id(pins, &self.app_id) {
+				self.pinned = false;
+				interface.config_changed(data);
+				self
+					.frontend_tasks
+					.push(FrontendTask::PushToast(Translation::from_raw_text(
+						"Unpinned from keyboard",
+					)));
+			}
+		} else {
+			let manifest = AppManifest {
+				app_id: self.app_id.clone(),
+				run_game_id: self.app_id.clone(),
+				name: self.app_name.clone(),
+				raw_state_flags: 0,
+				last_played: None,
+			};
+			let launch = pinning::build_game_pin(&manifest);
+			if pinning::upsert_pin(interface.pinned_apps(data), launch) {
+				self.pinned = true;
+				interface.config_changed(data);
+				self
+					.frontend_tasks
+					.push(FrontendTask::PushToast(Translation::from_raw_text(
+						"Pinned to keyboard",
+					)));
+			}
+		}
+
+		let _ = self.set_pin_button_label(layout);
 	}
 
 	fn action_fill_app_details(

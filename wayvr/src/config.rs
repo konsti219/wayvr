@@ -2,7 +2,7 @@ use config::{Config, File};
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use wayvr_ipc::packet_client::WvrProcessLaunchParams;
+use wayvr_ipc::packet_client::{WvrPinLaunchParams, WvrProcessLaunchParams};
 use wlx_common::{
     astr_containers::AStrMap,
     config::{
@@ -141,6 +141,7 @@ pub struct AutoSettings {
     pub capture_method: CaptureMethod,
     pub keyboard_middle_click_mode: AltModifier,
     pub autostart_apps: Vec<WvrProcessLaunchParams>,
+    pub pinned_apps: Vec<WvrPinLaunchParams>,
     pub handsfree_pointer: HandsfreePointer,
     pub language: Option<Language>,
 }
@@ -192,6 +193,7 @@ pub fn save_settings(config: &GeneralConfig) -> anyhow::Result<()> {
         capture_method: config.capture_method,
         keyboard_middle_click_mode: config.keyboard_middle_click_mode,
         autostart_apps: config.autostart_apps.clone(),
+        pinned_apps: config.pinned_apps.clone(),
         handsfree_pointer: config.handsfree_pointer,
         language: config.language,
     };

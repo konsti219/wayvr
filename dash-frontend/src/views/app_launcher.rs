@@ -259,14 +259,16 @@ impl View {
 			})
 		});
 
-		let mut label_title = state.fetch_widget_as::<WidgetLabel>(&params.layout.state, "label_title")?;
+		{
+			let mut label_title = state.fetch_widget_as::<WidgetLabel>(&params.layout.state, "label_title")?;
 
-		label_title.set_text_simple(
-			&mut params.globals.get(),
-			Translation::from_raw_text(&params.entry.app_name),
-		);
+			label_title.set_text_simple(
+				&mut params.globals.get(),
+				Translation::from_raw_text(&params.entry.app_name),
+			);
+		}
 
-		Ok(Self {
+		let out = Self {
 			state,
 			tasks,
 			radio_compositor,
@@ -281,10 +283,17 @@ impl View {
 			frontend_tasks: params.frontend_tasks.clone(),
 			globals: params.globals.clone(),
 			on_launched: params.on_launched,
-		})
+		};
+
+		Ok(out)
 	}
 
-	pub fn update<T>(&mut self, interface: &mut BoxDashInterface<T>, data: &mut T) -> anyhow::Result<()> {
+	pub fn update<T>(
+		&mut self,
+		_layout: &mut Layout,
+		interface: &mut BoxDashInterface<T>,
+		data: &mut T,
+	) -> anyhow::Result<()> {
 		loop {
 			let tasks = self.tasks.drain();
 			if tasks.is_empty() {
