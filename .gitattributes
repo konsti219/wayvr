@@ -1,0 +1,5 @@
+# Never textually merge the lockfile. Git's line merge happily produces invalid
+# TOML here (interleaved [[package]] blocks), which cargo then rejects. On a
+# conflict, take one side and regenerate:
+#     git checkout --theirs Cargo.lock && cargo check
+Cargo.lock merge=binary

@@ -18,27 +18,10 @@ log = { workspace = true }
 pipewire = { workspace = true, optional = true }
 slotmap.workspace = true
 wayland-client = { workspace = true, optional = true }
-wayland-protocols = {
-  workspace = true,
-  features = [
-    "client",
-    "staging",
-    "unstable",
-    "wayland-client",
-  ],
-  optional = true
-}
+wayland-protocols = { workspace = true, features = [ "client", "staging", "unstable", "wayland-client"], optional = true }
 
 drm-fourcc = "2.2.0"
-rxscreen = {
-  version = "0.1.7",
-  features = [
-    "mouse",
-    "shm",
-    "xrandr",
-  ],
-  optional = true
-}
+rxscreen = { version = "0.1.7", features = [ "mouse", "shm", "xrandr"], optional = true }
 smithay-client-toolkit = { version = "0.20.0", optional = true }
 
 [features]

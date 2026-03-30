@@ -26,11 +26,7 @@ xdg.workspace = true
 
 glob = "0.3.3"
 identicons-svg = "0.1.0"
-rodio = {
-  version = "0.22.2",
-  default-features = false,
-  features = ["hound", "mp3", "playback", "recording"]
-}
+rodio = { version = "0.22.2", default-features = false, features = ["hound", "mp3", "playback", "recording"] }
 rust-ini = "0.21.3"
 walkdir = "2.5.0"
 wgui = { path = "../wgui/" }
