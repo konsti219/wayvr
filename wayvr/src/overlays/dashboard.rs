@@ -3,7 +3,7 @@ use std::sync::atomic::Ordering;
 use dash_frontend::frontend::{self, FrontendTask, FrontendUpdateParams};
 use glam::{Affine2, Affine3A, Vec2, vec2, vec3};
 use wayvr_ipc::{
-    packet_client::WvrProcessLaunchParams,
+    packet_client::{WvrPinLaunchParams, WvrProcessLaunchParams},
     packet_server::{WvrProcess, WvrProcessHandle, WvrWindow, WvrWindowHandle},
 };
 use wgui::{
@@ -442,6 +442,10 @@ impl DashInterface<AppState> for DashInterfaceLive {
         data: &'a mut AppState,
     ) -> &'a mut wlx_common::config::GeneralConfig {
         &mut data.session.config
+    }
+
+    fn pinned_apps<'a>(&'a mut self, data: &'a mut AppState) -> &'a mut Vec<WvrPinLaunchParams> {
+        &mut data.session.config.pinned_apps
     }
 
     fn config_changed(&mut self, data: &mut AppState) {

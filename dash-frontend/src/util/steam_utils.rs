@@ -2,26 +2,11 @@ use keyvalues_parser::{Obj, Vdf};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+pub use wlx_common::steam::*;
+
 pub struct SteamUtils {
 	steam_root: PathBuf,
 }
-
-fn get_steam_root() -> anyhow::Result<PathBuf> {
-	let home = PathBuf::from(std::env::var("HOME")?);
-
-	let steam_paths: [&str; 3] = [
-		".steam/steam",
-		".steam/debian-installation",
-		".var/app/com.valvesoftware.Steam/data/Steam",
-	];
-	let Some(steam_path) = steam_paths.iter().map(|path| home.join(path)).find(|p| p.exists()) else {
-		anyhow::bail!("Couldn't find Steam installation in search paths");
-	};
-
-	Ok(steam_path)
-}
-
-pub type AppID = String;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppManifest {
@@ -120,114 +105,6 @@ fn vdf_parse_appstate<'a>(app_id: AppID, vdf_root: &'a Vdf<'a>) -> Option<AppMan
 struct AppEntry {
 	pub root_path: String,
 	pub app_id: AppID,
-}
-
-pub fn launch(app_id: &AppID) -> anyhow::Result<()> {
-	log::info!("Launching Steam game with AppID {}", app_id);
-	call_steam(&format!("steam://rungameid/{}", app_id))?;
-	Ok(())
-}
-
-pub fn stop(app_id: AppID, force_kill: bool) -> anyhow::Result<()> {
-	log::info!("Stopping Steam game with AppID {}", app_id);
-
-	for game in list_running_games()? {
-		if game.app_id != app_id {
-			continue;
-		}
-
-		log::info!("Killing process with PID {} and its children", game.pid);
-		let _ = std::process::Command::new("pkill")
-			.arg(if force_kill { "-9" } else { "-15" })
-			.arg("-P")
-			.arg(format!("{}", game.pid))
-			.spawn()?;
-	}
-	Ok(())
-}
-
-#[derive(Serialize)]
-pub struct RunningGame {
-	pub app_id: AppID,
-	pub pid: i32,
-}
-
-pub fn list_running_games() -> anyhow::Result<Vec<RunningGame>> {
-	let mut res = Vec::<RunningGame>::new();
-
-	let entries = std::fs::read_dir("/proc")?;
-	for entry in entries.into_iter().flatten() {
-		let path_cmdline = entry.path().join("cmdline");
-		let Ok(cmdline) = std::fs::read(path_cmdline) else {
-			continue;
-		};
-
-		let proc_file_name = entry.file_name();
-		let Some(pid) = proc_file_name.to_str() else {
-			continue;
-		};
-
-		let Ok(pid) = pid.parse::<i32>() else {
-			continue;
-		};
-
-		let args: Vec<&str> = cmdline
-			.split(|byte| *byte == 0x00)
-			.filter_map(|arg| std::str::from_utf8(arg).ok())
-			.collect();
-
-		let mut has_steam_launch = false;
-		for arg in &args {
-			if *arg == "SteamLaunch" {
-				has_steam_launch = true;
-				break;
-			}
-		}
-
-		if !has_steam_launch {
-			continue;
-		}
-
-		// Running game process found. Parse AppID
-		for arg in &args {
-			let pat = "AppId=";
-			let Some(pos) = arg.find(pat) else {
-				continue;
-			};
-
-			if pos != 0 {
-				continue;
-			}
-
-			let Some((_, second)) = arg.split_at_checked(pat.len()) else {
-				continue;
-			};
-
-			let Ok(app_id_num) = second.parse::<u64>() else {
-				continue;
-			};
-
-			// AppID found. Add it to the list
-			res.push(RunningGame {
-				app_id: app_id_num.to_string(),
-				pid,
-			});
-
-			break;
-		}
-	}
-
-	Ok(res)
-}
-
-fn call_steam(arg: &str) -> anyhow::Result<()> {
-	match std::process::Command::new("xdg-open").arg(arg).spawn() {
-		Ok(_) => Ok(()),
-		Err(_) => {
-			std::process::Command::new("steam").arg(arg).spawn()?;
-			Ok(())
-		}
-	}
 }
 
 impl SteamUtils {

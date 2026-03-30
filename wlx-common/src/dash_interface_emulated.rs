@@ -1,5 +1,5 @@
 use wayvr_ipc::{
-	packet_client::WvrProcessLaunchParams,
+	packet_client::{WvrPinLaunchParams, WvrProcessLaunchParams},
 	packet_server::{WvrProcess, WvrProcessHandle, WvrWindow, WvrWindowHandle},
 };
 
@@ -228,6 +228,10 @@ impl DashInterface<()> for DashInterfaceEmulated {
 
 	fn general_config<'a>(&'a mut self, _: &'a mut ()) -> &'a mut crate::config::GeneralConfig {
 		&mut self.general_config
+	}
+
+	fn pinned_apps<'a>(&'a mut self, _: &'a mut ()) -> &'a mut Vec<WvrPinLaunchParams> {
+		&mut self.general_config.pinned_apps
 	}
 
 	fn config_changed(&mut self, _: &mut ()) {}

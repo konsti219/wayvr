@@ -14,11 +14,13 @@ use wgui::{
 	},
 };
 use wlx_common::async_executor::AsyncExecutor;
+use wlx_common::dash_interface::BoxDashInterface;
 
 use crate::{
 	frontend::{FrontendTask, FrontendTasks},
 	util::{
 		cached_fetcher::CoverArt,
+		pinning,
 		popup_manager::{MountPopupParams, PopupHandle},
 		steam_utils::{self, AppID, SteamUtils},
 	},
@@ -114,11 +116,13 @@ impl View {
 		})
 	}
 
-	pub fn update(
+	pub fn update<T>(
 		&mut self,
 		layout: &mut Layout,
 		steam_utils: &mut SteamUtils,
 		executor: &AsyncExecutor,
+		interface: &mut BoxDashInterface<T>,
+		data: &mut T,
 	) -> anyhow::Result<()> {
 		loop {
 			let tasks = self.tasks.drain();
@@ -129,7 +133,7 @@ impl View {
 				match task {
 					Task::LoadManifests => self.load_manifests(steam_utils),
 					Task::FillPage(page_idx) => self.fill_page(layout, executor, page_idx)?,
-					Task::AppManifestClicked(manifest) => self.action_app_manifest_clicked(manifest)?,
+					Task::AppManifestClicked(manifest) => self.action_app_manifest_clicked(manifest, interface, data)?,
 					Task::SetCoverArt(app_id, cover_art) => self.set_cover_art(layout, app_id, cover_art),
 					Task::CloseLauncher => self.state.borrow_mut().view_launcher = None,
 					Task::PrevPage => self.page_prev(),
@@ -140,7 +144,7 @@ impl View {
 
 		let mut state = self.state.borrow_mut();
 		if let Some((_, view)) = &mut state.view_launcher {
-			view.update(layout)?;
+			view.update(layout, interface, data)?;
 		}
 
 		Ok(())
@@ -282,7 +286,14 @@ impl View {
 		};
 	}
 
-	fn action_app_manifest_clicked(&mut self, manifest: steam_utils::AppManifest) -> anyhow::Result<()> {
+	fn action_app_manifest_clicked<T>(
+		&mut self,
+		manifest: steam_utils::AppManifest,
+		interface: &mut BoxDashInterface<T>,
+		data: &mut T,
+	) -> anyhow::Result<()> {
+		let is_pinned = pinning::is_pinned(&interface.general_config(data).pinned_apps, &manifest.app_id);
+
 		self.frontend_tasks.push(FrontendTask::MountPopup(MountPopupParams {
 			title: Translation::from_raw_text(&manifest.name),
 			on_content: {
@@ -305,6 +316,7 @@ impl View {
 						layout: data.layout,
 						parent_id: data.id_content,
 						frontend_tasks: &frontend_tasks,
+						is_pinned,
 						on_launched,
 					})?;
 

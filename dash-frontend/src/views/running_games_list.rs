@@ -109,7 +109,7 @@ impl View {
 		format!("Unknown AppID {}", app_id)
 	}
 
-	fn fill_list(&mut self, layout: &mut Layout, games: Vec<steam_utils::RunningGame>) -> anyhow::Result<()> {
+	fn fill_list(&mut self, layout: &mut Layout, games: Vec<wlx_common::steam::RunningGame>) -> anyhow::Result<()> {
 		if games.is_empty() {
 			// hide self
 			layout.tasks.push(LayoutTask::SetWidgetStyle(
@@ -161,7 +161,7 @@ impl View {
 
 		layout.remove_children(self.id_list_parent);
 
-		match steam_utils::list_running_games() {
+		match wlx_common::steam::list_running_games() {
 			Ok(games) => self.fill_list(layout, games)?,
 			Err(e) => {
 				log::error!("failed to list games: {}", e);
@@ -172,7 +172,7 @@ impl View {
 	}
 
 	fn stop_game(&mut self, app_id: AppID, kill: bool) {
-		if let Err(e) = steam_utils::stop(app_id, kill) {
+		if let Err(e) = steam_utils::stop(&app_id, kill) {
 			self
 				.frontend_tasks
 				.push(FrontendTask::PushToast(Translation::from_raw_text_string(format!(

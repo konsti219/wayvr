@@ -31,7 +31,13 @@ impl<T> Tab<T> for TabGames<T> {
 	fn update(&mut self, frontend: &mut Frontend<T>, time_ms: u32, _data: &mut T) -> anyhow::Result<()> {
 		self
 			.view_game_list
-			.update(&mut frontend.layout, &mut self.steam_utils, &frontend.executor)?;
+			.update(
+				&mut frontend.layout,
+				&mut self.steam_utils,
+				&frontend.executor,
+				&mut frontend.interface,
+				_data,
+			)?;
 		self.view_running_games_list.update(&mut frontend.layout, time_ms)?;
 		Ok(())
 	}

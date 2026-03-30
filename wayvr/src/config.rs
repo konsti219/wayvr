@@ -2,7 +2,7 @@ use config::{Config, File};
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use wayvr_ipc::packet_client::WvrProcessLaunchParams;
+use wayvr_ipc::packet_client::{WvrPinLaunchParams, WvrProcessLaunchParams};
 use wlx_common::{
     astr_containers::AStrMap,
     config::{
@@ -142,6 +142,7 @@ pub struct AutoSettings {
     pub keyboard_middle_click_mode: AltModifier,
     pub keyboard_swipe_to_type_enabled: bool,
     pub autostart_apps: Vec<WvrProcessLaunchParams>,
+    pub pinned_apps: Vec<WvrPinLaunchParams>,
     pub handsfree_pointer: HandsfreePointer,
     pub language: Option<Language>,
     pub chroma_key_params: ChromaKeyParams,
@@ -195,6 +196,7 @@ pub fn save_settings(config: &GeneralConfig) -> anyhow::Result<()> {
         keyboard_middle_click_mode: config.keyboard_middle_click_mode,
         keyboard_swipe_to_type_enabled: config.keyboard_swipe_to_type_enabled,
         autostart_apps: config.autostart_apps.clone(),
+        pinned_apps: config.pinned_apps.clone(),
         handsfree_pointer: config.handsfree_pointer,
         language: config.language,
         chroma_key_params: config.chroma_key_params.clone(),

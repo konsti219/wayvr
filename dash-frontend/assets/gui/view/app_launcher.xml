@@ -53,10 +53,12 @@
         <Separator />
         <div flex_direction="row" justify_content="space_between" gap="16">
           <CheckBox id="cb_autostart" translation="APP_LAUNCHER.AUTOSTART" />
-          <Button id="btn_launch" align_self="baseline" color="#44ce22FF" padding_top="4" padding_bottom="4" round="8" padding_right="12" min_height="40">
-            <sprite src_builtin="dashboard/play.svg" width="32" height="32" />
-            <label translation="APP_LAUNCHER.LAUNCH" weight="bold" size="17" shadow="#00000099" />
-          </Button>
+          <div flex_direction="row" gap="10">
+            <Button id="btn_launch" align_self="baseline" color="#44ce22FF" padding_top="4" padding_bottom="4" round="8" padding_right="12" min_height="40">
+              <sprite src_builtin="dashboard/play.svg" width="32" height="32" />
+              <label translation="APP_LAUNCHER.LAUNCH" weight="bold" size="17" shadow="#00000099" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

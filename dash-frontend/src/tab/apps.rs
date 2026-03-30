@@ -60,7 +60,7 @@ impl<T> Tab<T> for TabApps<T> {
 			.tick(frontend, &self.state, &self.tasks, &mut self.parser_state)?;
 
 		if let Some((_, launcher)) = &mut state.view_launcher {
-			launcher.update(&mut frontend.interface, data)?;
+			launcher.update(&mut frontend.layout, &mut frontend.interface, data)?;
 		}
 		Ok(())
 	}
