@@ -19,6 +19,7 @@ use crate::{
 	frontend::FrontendTasks,
 	util::{
 		cached_fetcher::CoverArt,
+		pinning,
 		popup_manager::PopupHolder,
 		steam_utils::{self, AppID, SteamUtils},
 	},
@@ -75,7 +76,11 @@ impl ViewTrait for View {
 				match task {
 					Task::LoadManifests => self.load_manifests(),
 					Task::FillPage(page_idx) => self.fill_page(par.layout, par.executor, page_idx)?,
-					Task::AppManifestClicked(manifest) => self.action_app_manifest_clicked(manifest)?,
+					Task::AppManifestClicked(manifest) => {
+						let is_pinned =
+							pinning::is_pinned(&par.general_config.pinned_games, &manifest.app_id);
+						self.action_app_manifest_clicked(manifest, is_pinned)?;
+					}
 					Task::SetCoverArt(app_id, cover_art) => self.set_cover_art(par.layout, app_id, cover_art),
 					Task::PrevPage => self.page_prev(),
 					Task::NextPage => self.page_next(),
@@ -269,13 +274,18 @@ impl View {
 		};
 	}
 
-	fn action_app_manifest_clicked(&mut self, manifest: steam_utils::AppManifest) -> anyhow::Result<()> {
+	fn action_app_manifest_clicked(
+		&mut self,
+		manifest: steam_utils::AppManifest,
+		is_pinned: bool,
+	) -> anyhow::Result<()> {
 		views::game_launcher::mount_popup(
 			self.frontend_tasks.clone(),
 			self.executor.clone(),
 			self.globals.clone(),
 			manifest,
 			self.view_launcher.clone(),
+			is_pinned,
 		);
 
 		Ok(())
