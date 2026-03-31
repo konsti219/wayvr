@@ -531,6 +531,8 @@ where
 
     handle_scroll(&hit, hovered, app);
 
+    let mut click_haptics = None;
+
     // click / release
     let pointer = &mut app.input_state.pointers[hit.pointer];
     if pointer.now.any_click() && !pointer.before.any_click() {
@@ -540,6 +542,14 @@ where
             hovered.config.keyboard_focus,
         );
         hovered.config.backend.on_pointer(app, &hit, true);
+
+        if hovered.config.name.as_ref() == KEYBOARD_NAME {
+            click_haptics = Some(Haptics {
+                intensity: 0.08,
+                duration: 0.03,
+                frequency: 8.0,
+            });
+        }
     } else if !pointer.now.any_click() && pointer.before.any_click() {
         // send release event to overlay that was originally clicked
         if let Some(clicked_id) = pointer.interaction.clicked_id.take() {
@@ -551,7 +561,10 @@ where
         }
     }
 
-    (Some((hit, raw_hit)), haptics.or(pending_haptics))
+    (
+        Some((hit, raw_hit)),
+        haptics.or(click_haptics).or(pending_haptics),
+    )
 }
 
 fn handle_no_hit<O>(
