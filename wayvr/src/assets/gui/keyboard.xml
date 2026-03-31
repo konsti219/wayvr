@@ -107,6 +107,13 @@
 
   <macro name="bg_rect" width="100%" color="~color_bg" round="10" border="2" border_color="~color_accent" />
 
+  <blueprint name="menu_shutdown">
+    <context_menu>
+      <cell text="Shutdown" _press="::Shutdown" />
+      <cell text="Shutdown and Disconnect" _press="::ShutdownDisconnect" />
+    </context_menu>
+  </blueprint>
+
   <blueprint name="menu_app">
     <context_menu >
       <!-- title text="${name}" /-->
@@ -229,6 +236,9 @@
     <div flex_direction="column" interactable="0">
       <rectangle macro="bg_rect" padding="10" align_items="center" justify_content="space_between">
         <div gap="10">
+          <Button macro="button_style" id="btn_power" _press="::ContextMenuOpen menu_shutdown">
+            <sprite width="38" height="38" color="~color_text" src="dashboard/power.svg" />
+          </Button>
           <Button macro="button_style" id="btn_dashboard" _press="::DashToggle">
             <sprite width="38" height="38" color="~color_text" src="watch/wayvr_dashboard_mono.svg"  />
           </Button>
