@@ -148,6 +148,8 @@ impl CustomClickAction {
 pub(super) struct OpenXrHandSource {
     pose: xr::Action<xr::Posef>,
     click: CustomClickAction,
+    click_right: CustomClickAction,
+    click_middle: CustomClickAction,
     grab: CustomClickAction,
     alt_click: CustomClickAction,
     show_hide: CustomClickAction,
@@ -437,6 +439,16 @@ impl OpenXrPointer {
     ) -> anyhow::Result<()> {
         pointer.now.click = self.source.click.state(pointer.before.click, xr, session)?;
 
+        pointer.now.click_right =
+            self.source
+                .click_right
+                .state(pointer.before.click_right, xr, session)?;
+
+        pointer.now.click_middle =
+            self.source
+                .click_middle
+                .state(pointer.before.click_middle, xr, session)?;
+
         pointer.now.grab = self.source.grab.state(pointer.before.grab, xr, session)?;
 
         let scroll = self
@@ -520,6 +532,8 @@ impl OpenXrHandSource {
         Ok(Self {
             pose: action_pose,
             click: CustomClickAction::new(action_set, "click", side)?,
+            click_right: CustomClickAction::new(action_set, "click_right", side)?,
+            click_middle: CustomClickAction::new(action_set, "click_middle", side)?,
             grab: CustomClickAction::new(action_set, "grab", side)?,
             scroll: action_scroll,
             alt_click: CustomClickAction::new(action_set, "alt_click", side)?,
@@ -665,6 +679,16 @@ fn suggest_bindings(instance: &xr::Instance, hands: &[&OpenXrHandSource; 3]) {
 
         add_custom!(profile.click, click, hands, bindings, instance);
 
+        add_custom!(profile.click_right, click_right, hands, bindings, instance);
+
+        add_custom!(
+            profile.click_middle,
+            click_middle,
+            hands,
+            bindings,
+            instance
+        );
+
         add_custom!(profile.alt_click, alt_click, hands, bindings, instance);
 
         add_custom!(profile.grab, grab, hands, bindings, instance);
@@ -746,6 +770,8 @@ struct OpenXrActionConfProfile {
     profile: String,
     pose: Option<OpenXrActionConfAction>,
     click: Option<OpenXrActionConfAction>,
+    click_right: Option<OpenXrActionConfAction>,
+    click_middle: Option<OpenXrActionConfAction>,
     grab: Option<OpenXrActionConfAction>,
     alt_click: Option<OpenXrActionConfAction>,
     show_hide: Option<OpenXrActionConfAction>,
