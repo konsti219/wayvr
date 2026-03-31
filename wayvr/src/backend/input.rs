@@ -89,18 +89,18 @@ impl InputState {
             #[cfg(debug_assertions)]
             debug_print_hand(hand);
 
-            if hand.now.click {
+            if hand.now.any_click() {
                 hand.last_click = Instant::now();
             }
 
             // Prevent the mode from changing during a click
-            if !hand.before.click {
-                if hand.now.click_modifier_right {
+            if !hand.before.any_click() {
+                if hand.now.click_right || hand.now.click_modifier_right {
                     hand.interaction.mode = PointerMode::Right;
                     continue;
                 }
 
-                if hand.now.click_modifier_middle {
+                if hand.now.click_middle || hand.now.click_modifier_middle {
                     hand.interaction.mode = PointerMode::Middle;
                     continue;
                 }
@@ -160,6 +160,12 @@ fn debug_print_hand(hand: &Pointer) {
     {
         if hand.now.click != hand.before.click {
             log::debug!("Hand {}: click {}", hand.idx, hand.now.click);
+        }
+        if hand.now.click_right != hand.before.click_right {
+            log::debug!("Hand {}: click_right {}", hand.idx, hand.now.click_right);
+        }
+        if hand.now.click_middle != hand.before.click_middle {
+            log::debug!("Hand {}: click_middle {}", hand.idx, hand.now.click_middle);
         }
         if hand.now.grab != hand.before.grab {
             log::debug!("Hand {}: grab {}", hand.idx, hand.now.grab);
@@ -269,6 +275,8 @@ pub struct PointerState {
     pub scroll_x: f32,
     pub scroll_y: f32,
     pub click: bool,
+    pub click_right: bool,
+    pub click_middle: bool,
     pub grab: bool,
     pub alt_click: bool,
     pub show_hide: bool,
@@ -279,6 +287,12 @@ pub struct PointerState {
     pub click_modifier_right: bool,
     pub click_modifier_middle: bool,
     pub move_mouse: bool,
+}
+
+impl PointerState {
+    pub const fn any_click(&self) -> bool {
+        self.click || self.click_right || self.click_middle
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -519,14 +533,14 @@ where
 
     // click / release
     let pointer = &mut app.input_state.pointers[hit.pointer];
-    if pointer.now.click && !pointer.before.click {
+    if pointer.now.any_click() && !pointer.before.any_click() {
         pointer.interaction.clicked_id = Some(hit.overlay);
         update_focus(
             &mut app.hid_provider.keyboard_focus,
             hovered.config.keyboard_focus,
         );
         hovered.config.backend.on_pointer(app, &hit, true);
-    } else if !pointer.now.click && pointer.before.click {
+    } else if !pointer.now.any_click() && pointer.before.any_click() {
         // send release event to overlay that was originally clicked
         if let Some(clicked_id) = pointer.interaction.clicked_id.take() {
             if let Some(clicked) = overlays.mut_by_id(clicked_id) {
@@ -563,8 +577,8 @@ fn handle_no_hit<O>(
 
     // in case click released while not aiming at anything
     // send release event to overlay that was originally clicked
-    if !pointer.now.click
-        && pointer.before.click
+    if !pointer.now.any_click()
+        && pointer.before.any_click()
         && let Some(clicked_id) = pointer.interaction.clicked_id.take()
         && let Some(clicked) = overlays.mut_by_id(clicked_id)
     {
@@ -805,7 +819,7 @@ where
         };
 
         if grab_anchor {
-            if pointer.now.click {
+            if pointer.now.any_click() {
                 pointer.interaction.mode = PointerMode::Special;
                 let grab_dist = grab_data.offset.translation.length().clamp(0.5, 5.0) * 0.2 + 0.4;
                 handle_scale(&mut app.anchor, pointer.now.scroll_y * grab_dist);
@@ -816,7 +830,7 @@ where
                 grab_data.offset.translation.z -= pointer.now.scroll_y * 0.02 * grab_dist;
                 grab_data.offset.translation.z = grab_data.offset.translation.z.min(-0.05);
             }
-            if pointer.now.click_modifier_right {
+            if pointer.now.click_right || pointer.now.click_modifier_right {
                 app.anchor = pointer.pose * grab_data.offset;
             } else {
                 app.anchor.translation =
@@ -825,7 +839,7 @@ where
             }
         } else {
             // single grab resize
-            if pointer.now.click {
+            if pointer.now.any_click() {
                 pointer.interaction.mode = PointerMode::Special;
                 let grab_dist = grab_data.offset.translation.length().clamp(0.5, 5.0) * 0.2 + 0.4;
                 handle_scale(
@@ -839,7 +853,7 @@ where
                 grab_data.offset.translation.z -= pointer.now.scroll_y * 0.02 * grab_dist;
                 grab_data.offset.translation.z = grab_data.offset.translation.z.min(-0.05);
             }
-            if pointer.now.click_modifier_right {
+            if pointer.now.click_right || pointer.now.click_modifier_right {
                 overlay_state.transform = pointer.pose * grab_data.offset;
             } else {
                 overlay_state.transform.translation =
