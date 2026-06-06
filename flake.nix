@@ -42,6 +42,7 @@
           "osc"
           "x11"
           "wayland"
+          "feat-monado-metrics"
         ]
         # ++ lib.optionals withOpenVR ["openvr"]
       );
@@ -165,15 +166,86 @@
           };
         }
       );
+
+      wivrnMonadoMetrics = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {
+        version = "26.6";
+
+        # WiVRn 26.6's cmake/CompileGLSL.cmake embeds shaders via `hexdump`.
+        nativeBuildInputs = (oldAttrs.nativeBuildInputs or []) ++ [
+          pkgs.unixtools.hexdump
+        ];
+
+        # WiVRn 26.6's dashboard now requires the kirigami-addons formcard QML module.
+        buildInputs = (oldAttrs.buildInputs or []) ++ [
+          pkgs.kdePackages.kirigami-addons
+        ];
+
+        src = pkgs.fetchFromGitHub {
+          owner = "wivrn";
+          repo = "wivrn";
+          rev = "v${finalAttrs.version}";
+          hash = "sha256-0RvQnaxASPcv3JkEp1OON/n4C9qEAAJ8R7m2FKPlVK0=";
+        };
+
+        # WiVRn 26.6's GitVersion.cmake requires GIT_COMMIT at build time, which
+        # can't be inferred from the (gitless) nix source. v26.6 tag commit:
+        cmakeFlags = (oldAttrs.cmakeFlags or []) ++ [
+          "-DGIT_COMMIT=f8841585ebcc413cd2879da4d8acb2bddea1dddc"
+        ];
+
+        # NOTE: wivrn-comp-target-gpu-metrics.patch was dropped for WiVRn 26.6:
+        # the compositor refactor removed server/driver/wivrn_comp_target.cpp, and
+        # the SystemGpuInfo record it produced is unused by wayvr (only SessionFrame,
+        # emitted by the app_pacer override below, is consumed).
+        patches = (oldAttrs.patches or []) ++ [
+          ./nix/wivrn-metrics-init.patch
+        ];
+        postPatch = (oldAttrs.postPatch or "") + ''
+          cp ${./nix/wivrn-app-pacer-metrics/app_pacer.h} server/driver/app_pacer.h
+          cp ${./nix/wivrn-app-pacer-metrics/app_pacer.cpp} server/driver/app_pacer.cpp
+        '';
+
+        # Monado source revision pinned by WiVRn v26.6 (see its monado-rev file),
+        # with WiVRn's own monado patches plus our metrics MR applied.
+        monado = pkgs.applyPatches {
+          name = "monado-with-metrics";
+          src = pkgs.applyPatches {
+            src = pkgs.fetchFromGitLab {
+              domain = "gitlab.freedesktop.org";
+              owner = "monado";
+              repo = "monado";
+              rev = "1b526bb3a0ff326ecd05af4c2c541407f53c6d4b";
+              hash = "sha256-SzuCQ1uX15vFGwGt3gswlVF2Su8sIND4R3tsTJ4T1LY=";
+            };
+            postPatch = ''
+              ${finalAttrs.src}/patches/apply.sh ${finalAttrs.src}/patches/monado/*
+            '';
+          };
+          # Monado metrics MR 2484, vendored with two hunks rebased onto the
+          # monado revision shipped by WiVRn 26.6 (XRT_ERROR_OUT_OF_MEMORY moved
+          # to -45, libmonado.def export reordered past WiVRn's chroma-key line).
+          patches = [
+            ./nix/wivrn-monado-mr2484.patch
+          ];
+          # Fail if any patch fails
+          patchFlags = ["-p1" "-F0"];
+        };
+      });
     in {
       packages = {
         default = wayvrPkg;
         wayvr = wayvrPkg;
+        wivrn-monado-metrics = wivrnMonadoMetrics;
       };
 
       apps.default = {
         type = "app";
         program = "${wayvrPkg}/bin/wayvr";
+      };
+
+      apps.wivrn-monado-metrics = {
+        type = "app";
+        program = "${wivrnMonadoMetrics}/bin/wivrn-server";
       };
 
       devShells.default = pkgs.mkShell {

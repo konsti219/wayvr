@@ -1,0 +1,913 @@
+Monado MR 2484 -- "Add a way to get metrics out of the runtime"
+https://gitlab.freedesktop.org/monado/monado/-/merge_requests/2484
+
+Flattened from the upstream series and regenerated against the monado revision
+pinned by WiVRn 26.6.2, with WiVRn's own monado patches already applied. The
+original series needed fuzz in three hunks (ipc_server_handler.c, 50-system.json
+and libmonado/monado.h -- WiVRn inserts a chroma-key declaration next to the
+libmonado anchor); this form applies exactly, so -F0 can stay on.
+
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/doc/changes/drivers/mr.2484.md work/doc/changes/drivers/mr.2484.md
+--- a/doc/changes/drivers/mr.2484.md
++++ b/doc/changes/drivers/mr.2484.md
+@@ -0,0 +1 @@
++u/metrics: Add libmonado function for adding secondary metrics output files.
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/auxiliary/util/u_metrics.c work/src/xrt/auxiliary/util/u_metrics.c
+--- a/src/xrt/auxiliary/util/u_metrics.c
++++ b/src/xrt/auxiliary/util/u_metrics.c
+@@ -15,15 +15,48 @@
+ #include "monado_metrics.pb.h"
+ #include "pb_encode.h"
+ 
++#include <errno.h>
++#include <fcntl.h>
+ #include <stdio.h>
+ 
++#if defined(XRT_OS_LINUX)
++#include <signal.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <unistd.h>
++#endif
++
++#if defined(XRT_OS_WINDOWS)
++#include <io.h>
++#endif
++
+ #define VERSION_MAJOR 1
+ #define VERSION_MINOR 1
+ 
+-static FILE *g_file = NULL;
+-static struct os_mutex g_file_mutex;
++#define BUFFER_SIZE (monado_metrics_Record_size + 10)
++
++enum u_metrics_sink_type
++{
++	U_METRICS_SINK_TYPE_REGULAR_FILE,
++	U_METRICS_SINK_TYPE_SOCKET,
++};
++
++struct u_metrics_sink
++{
++	enum u_metrics_sink_type type;
++	union {
++		FILE *file;
++#if defined(XRT_OS_LINUX)
++		xrt_file_handle_t socket;
++#endif
++	};
++};
++
++static struct u_metrics_sink *g_metrics_sinks = NULL;
++static size_t g_metrics_sink_count = 0;
++static struct os_mutex g_metrics_mutex;
+ static bool g_metrics_initialized = false;
+-static bool g_metrics_early_flush = false;
+ 
+ DEBUG_GET_ONCE_OPTION(metrics_file, "XRT_METRICS_FILE", NULL)
+ DEBUG_GET_ONCE_BOOL_OPTION(metrics_early_flush, "XRT_METRICS_EARLY_FLUSH", false)
+@@ -37,36 +70,64 @@
+  */
+ 
+ static void
+-write_record(monado_metrics_Record *r)
++encode_record(monado_metrics_Record *r, uint8_t out_buffer[BUFFER_SIZE], size_t *out_size)
+ {
+-	uint8_t buffer[monado_metrics_Record_size + 10]; // Including submessage
+-
+-
+-	pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
++	pb_ostream_t stream = pb_ostream_from_buffer(out_buffer, BUFFER_SIZE);
+ 	bool ret = pb_encode_submessage(&stream, &monado_metrics_Record_msg, r);
+ 	if (!ret) {
+ 		U_LOG_E("Failed to encode metrics message!");
++		*out_size = 0;
+ 		return;
+ 	}
+ 
+-	os_mutex_lock(&g_file_mutex);
++	*out_size = stream.bytes_written;
++}
++
++static bool
++write_buffer_to_regular_file(uint8_t *buffer, size_t size, FILE *file)
++{
++	return fwrite(buffer, size, 1, file) == 1;
++}
+ 
+-	fwrite(buffer, stream.bytes_written, 1, g_file);
++#if defined(XRT_OS_LINUX)
++static bool
++write_buffer_to_socket(uint8_t *buffer, size_t size, int socket)
++{
++	return (size_t)send(socket, buffer, size, MSG_NOSIGNAL) == size;
++}
++#endif
+ 
+-	if (g_metrics_early_flush) {
+-		fflush(g_file);
++static bool
++write_buffer_to_sink_locked(uint8_t *buffer, size_t size, struct u_metrics_sink *sink)
++{
++	switch (sink->type) {
++	case U_METRICS_SINK_TYPE_REGULAR_FILE: return write_buffer_to_regular_file(buffer, size, sink->file);
++#if defined(XRT_OS_LINUX)
++	case U_METRICS_SINK_TYPE_SOCKET: return write_buffer_to_socket(buffer, size, sink->socket);
++#endif
++	default: assert(0 && "unhandled enum value");
+ 	}
+-
+-	os_mutex_unlock(&g_file_mutex);
++	return false;
+ }
+ 
+-static void
+-write_version(uint32_t major, uint32_t minor)
++static bool
++write_record_to_sink_locked(monado_metrics_Record *r, struct u_metrics_sink *sink)
+ {
+-	if (!g_metrics_initialized) {
+-		return;
++	uint8_t buffer[BUFFER_SIZE];
++	size_t size = 0;
++
++	encode_record(r, buffer, &size);
++
++	if (size < 1) {
++		return false;
+ 	}
+ 
++	return write_buffer_to_sink_locked(buffer, size, sink);
++}
++
++static bool
++write_version_to_sink_locked(uint32_t major, uint32_t minor, struct u_metrics_sink *sink)
++{
+ 	monado_metrics_Record record = monado_metrics_Record_init_default;
+ 
+ 	// Select which filed is used.
+@@ -74,7 +135,300 @@
+ 	record.record.version.major = major;
+ 	record.record.version.minor = minor;
+ 
+-	write_record(&record);
++	return write_record_to_sink_locked(&record, sink);
++}
++
++static void
++close_sink_regular_file(struct u_metrics_sink *sink)
++{
++	if (!sink->file) {
++		return;
++	}
++
++	fclose(sink->file);
++	sink->file = NULL;
++}
++
++#if defined(XRT_OS_LINUX)
++static void
++close_sink_socket(struct u_metrics_sink *sink)
++{
++	if (sink->socket == XRT_FILE_HANDLE_INVALID) {
++		return;
++	}
++
++	close(sink->socket);
++	sink->socket = XRT_FILE_HANDLE_INVALID;
++}
++#endif
++
++static void
++close_sink_stream_locked(struct u_metrics_sink *sink)
++{
++	switch (sink->type) {
++	case U_METRICS_SINK_TYPE_REGULAR_FILE: close_sink_regular_file(sink); break;
++#if defined(XRT_OS_LINUX)
++	case U_METRICS_SINK_TYPE_SOCKET: close_sink_socket(sink); break;
++#endif
++	default: assert(0 && "unhandled enum value");
++	}
++}
++
++static void
++close_sink_locked(struct u_metrics_sink *sink)
++{
++	close_sink_stream_locked(sink);
++
++	size_t sink_num = sink - g_metrics_sinks;
++	memcpy(g_metrics_sinks + sink_num, g_metrics_sinks + (sink_num + 1),
++	       sizeof(struct u_metrics_sink) * (g_metrics_sink_count - (sink_num + 1)));
++	g_metrics_sink_count--;
++
++	if (!g_metrics_sink_count) {
++		free(g_metrics_sinks);
++		g_metrics_sinks = NULL;
++		return;
++	}
++
++	size_t new_size = sizeof(struct u_metrics_sink) * g_metrics_sink_count;
++	struct u_metrics_sink *new_sinks = (struct u_metrics_sink *)realloc(g_metrics_sinks, new_size);
++	if (new_sinks) {
++		g_metrics_sinks = new_sinks;
++	}
++}
++
++static xrt_result_t
++add_sink(struct u_metrics_sink definition)
++{
++	bool succeeded = false;
++
++	os_mutex_lock(&g_metrics_mutex);
++
++	size_t new_size = sizeof(struct u_metrics_sink) * (g_metrics_sink_count + 1);
++	struct u_metrics_sink *new_sinks = (struct u_metrics_sink *)realloc(g_metrics_sinks, new_size);
++
++	if (new_sinks) {
++		g_metrics_sinks = new_sinks;
++
++		struct u_metrics_sink *sink = &new_sinks[g_metrics_sink_count];
++		*sink = definition;
++
++		succeeded = write_version_to_sink_locked(VERSION_MAJOR, VERSION_MINOR, sink);
++		if (succeeded) {
++			g_metrics_sink_count++;
++		}
++	}
++
++	os_mutex_unlock(&g_metrics_mutex);
++
++	if (new_sinks == NULL) {
++		return XRT_ERROR_OUT_OF_MEMORY;
++	}
++
++	if (!succeeded) {
++		close_sink_stream_locked(&definition);
++	}
++	return XRT_SUCCESS;
++}
++
++static xrt_result_t
++add_file(FILE *file, xrt_file_handle_t handle, bool early_flush)
++{
++	bool close_file = file != NULL;
++	bool close_handle = !close_file && handle != XRT_FILE_HANDLE_INVALID;
++	enum u_metrics_sink_type type;
++	xrt_result_t result;
++
++#if defined(XRT_OS_WINDOWS)
++
++	if (file != NULL && handle == XRT_FILE_HANDLE_INVALID) {
++		handle = _get_osfhandle(_fileno(file));
++	}
++
++	DWORD handle_type = FILE_TYPE_UNKNOWN;
++	if (handle != XRT_FILE_HANDLE_INVALID) {
++		SetLastError(0);
++		handle_type = GetFileType(handle);
++		if (handle_type == FILE_TYPE_UNKNOWN && GetLastError() != 0) {
++			U_LOG_E("Could not get type of handle %p!", handle);
++			result = XRT_ERROR_INVALID_ARGUMENT;
++			goto done;
++		}
++	}
++
++	switch (handle_type) {
++	case FILE_TYPE_DISK:
++	case FILE_TYPE_PIPE:
++	case FILE_TYPE_CHAR:
++	case FILE_TYPE_REMOTE:
++	case FILE_TYPE_UNKNOWN: type = U_METRICS_SINK_TYPE_REGULAR_FILE; break;
++	default: result = XRT_ERROR_INVALID_ARGUMENT; goto done;
++	}
++
++	if (handle_type == FILE_TYPE_PIPE) {
++		DWORD mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
++		if (!SetNamedPipeHandleState(handle, &mode, NULL, NULL)) {
++			U_LOG_E("Could not set pipe handle %p to nonblocking!", handle);
++			result = XRT_ERROR_INVALID_ARGUMENT;
++			goto done;
++		}
++	}
++
++	if (file == NULL) {
++		int fd = _open_osfhandle((intptr_t)handle, _O_WRONLY);
++		if (fd == -1) {
++			U_LOG_E("Could not convert handle %p to fd!", handle);
++			result = XRT_ERROR_OUT_OF_MEMORY;
++			goto done;
++		}
++
++		file = _fdopen(fd, "wb");
++		if (file == NULL) {
++			U_LOG_E("Could not open fd %d as file!", fd);
++			_close(fd);
++			result = XRT_ERROR_OUT_OF_MEMORY;
++			goto done;
++		}
++
++		close_file = true;
++		close_handle = false;
++	}
++
++#elif defined(XRT_OS_LINUX)
++
++	if (file != NULL && handle == XRT_FILE_HANDLE_INVALID) {
++		handle = fileno(file);
++	}
++
++	struct stat st;
++	memset(&st, 0, sizeof(st));
++	if (handle == XRT_FILE_HANDLE_INVALID) {
++		st.st_mode = S_IFIFO;
++	} else if (fstat(handle, &st) != 0) {
++		result = XRT_ERROR_INVALID_ARGUMENT;
++		goto done;
++	}
++
++	switch (st.st_mode & S_IFMT) {
++	case S_IFREG:
++	case S_IFBLK:
++	case S_IFCHR: type = U_METRICS_SINK_TYPE_REGULAR_FILE; break;
++	case S_IFSOCK: type = U_METRICS_SINK_TYPE_SOCKET; break;
++	case S_IFDIR:
++	case S_IFLNK:
++	default: result = XRT_ERROR_INVALID_ARGUMENT; goto done;
++	}
++
++	if (type == U_METRICS_SINK_TYPE_REGULAR_FILE && file == NULL) {
++		file = fdopen(handle, "wb");
++		if (file == NULL) {
++			U_LOG_E("Could not open fd %d as file!", handle);
++			result = XRT_ERROR_OUT_OF_MEMORY;
++			goto done;
++		}
++
++		close_file = true;
++		close_handle = false;
++	}
++
++	if (type != U_METRICS_SINK_TYPE_REGULAR_FILE) {
++		if (file != NULL) {
++			int new_handle = dup(handle);
++			if (new_handle == -1) {
++				U_LOG_E("Could not duplicate fd %d!", handle);
++				result = XRT_ERROR_OUT_OF_MEMORY;
++				goto done;
++			}
++
++			handle = new_handle;
++			close_handle = true;
++		}
++
++		int flags = fcntl(handle, F_GETFL, 0);
++		if (flags == -1) {
++			U_LOG_E("Could not get flags of file descriptor %d!", handle);
++			result = XRT_ERROR_INVALID_ARGUMENT;
++			goto done;
++		}
++
++		flags |= O_NONBLOCK;
++
++		if (fcntl(handle, F_SETFL, flags) == -1) {
++			U_LOG_E("Could not set file descriptor %d to nonblocking!", handle);
++			result = XRT_ERROR_INVALID_ARGUMENT;
++			goto done;
++		}
++	}
++
++#else
++
++	result = XRT_ERROR_FEATURE_NOT_SUPPORTED;
++	goto done;
++
++#endif
++
++	if (type == U_METRICS_SINK_TYPE_REGULAR_FILE && early_flush) {
++		setvbuf(file, NULL, _IONBF, 0);
++	}
++
++	struct u_metrics_sink definition = {
++	    .type = type,
++	};
++	switch (type) {
++	case U_METRICS_SINK_TYPE_REGULAR_FILE: definition.file = file; break;
++#if defined(XRT_OS_LINUX)
++	case U_METRICS_SINK_TYPE_SOCKET: definition.socket = handle; break;
++#endif
++	default: assert(0 && "unhandled enum value");
++	}
++
++	result = add_sink(definition);
++	if (result == XRT_SUCCESS) {
++		if (type == U_METRICS_SINK_TYPE_REGULAR_FILE) {
++			close_file = false;
++		} else {
++			close_handle = false;
++		}
++	}
++
++done:
++	if (close_file) {
++		fclose(file);
++	}
++	if (close_handle) {
++		xrt_file_handle_close(handle);
++	}
++	return result;
++}
++
++static void
++write_record(monado_metrics_Record *r)
++{
++	uint8_t buffer[BUFFER_SIZE];
++	size_t size = 0;
++
++	if (g_metrics_sink_count < 1) {
++		return;
++	}
++
++	encode_record(r, buffer, &size);
++
++	if (size < 1) {
++		return;
++	}
++
++	os_mutex_lock(&g_metrics_mutex);
++
++	for (size_t i = 0; i < g_metrics_sink_count; i++) {
++		struct u_metrics_sink *sink = &g_metrics_sinks[i];
++
++		if (!sink->file || !write_buffer_to_sink_locked(buffer, size, sink)) {
++			close_sink_locked(sink);
++			i--;
++		}
++	}
++
++	os_mutex_unlock(&g_metrics_mutex);
+ }
+ 
+ 
+@@ -87,26 +441,45 @@
+ void
+ u_metrics_init(void)
+ {
++	os_mutex_init(&g_metrics_mutex);
++
++	g_metrics_initialized = true;
++
+ 	const char *str = debug_get_option_metrics_file();
+ 	if (str == NULL) {
+ 		U_LOG_D("No metrics file!");
+ 		return;
+ 	}
+ 
+-	g_file = fopen(str, "wb");
+-	if (g_file == NULL) {
++	FILE *file = fopen(str, "wb");
++	if (file == NULL) {
+ 		U_LOG_E("Could not open '%s'!", str);
+ 		return;
+ 	}
++	bool early_flush = debug_get_bool_option_metrics_early_flush();
++	u_metrics_add_file(file, early_flush);
+ 
+-	os_mutex_init(&g_file_mutex);
++	U_LOG_I("Opened metrics file: '%s'", str); // NOLINT(clang-analyzer-unix.Stream)
++}
+ 
+-	g_metrics_initialized = true;
+-	g_metrics_early_flush = debug_get_bool_option_metrics_early_flush();
++xrt_result_t
++u_metrics_add_file(FILE *file, bool early_flush)
++{
++	if (!g_metrics_initialized) {
++		return XRT_ERROR_FEATURE_NOT_SUPPORTED;
++	}
+ 
+-	write_version(VERSION_MAJOR, VERSION_MINOR);
++	return add_file(file, XRT_FILE_HANDLE_INVALID, early_flush);
++}
+ 
+-	U_LOG_I("Opened metrics file: '%s'", str);
++xrt_result_t
++u_metrics_add_file_handle(xrt_file_handle_t handle, bool early_flush)
++{
++	if (!g_metrics_initialized) {
++		return XRT_ERROR_FEATURE_NOT_SUPPORTED;
++	}
++
++	return add_file(NULL, handle, early_flush);
+ }
+ 
+ void
+@@ -116,24 +489,34 @@
+ 		return;
+ 	}
+ 
+-	U_LOG_I("Closing metrics file: '%s'", debug_get_option_metrics_file());
++	const char *str = debug_get_option_metrics_file();
++	if (str != NULL) {
++		U_LOG_I("Closing metrics file: '%s'", str);
++	}
+ 
+ 	// At least try to avoid races.
+-	os_mutex_lock(&g_file_mutex);
+-	fflush(g_file);
+-	fclose(g_file);
+-	g_file = NULL;
+-	os_mutex_unlock(&g_file_mutex);
++	os_mutex_lock(&g_metrics_mutex);
++
++	for (size_t i = 0; i < g_metrics_sink_count; i++) {
++		struct u_metrics_sink *sink = &g_metrics_sinks[i];
+ 
+-	os_mutex_destroy(&g_file_mutex);
++		close_sink_locked(sink);
++	}
++
++	free(g_metrics_sinks);
++	g_metrics_sinks = NULL;
++
++	os_mutex_unlock(&g_metrics_mutex);
+ 
+ 	g_metrics_initialized = false;
++
++	os_mutex_destroy(&g_metrics_mutex);
+ }
+ 
+ bool
+ u_metrics_is_active(void)
+ {
+-	return g_metrics_initialized;
++	return g_metrics_initialized && g_metrics_sink_count > 0;
+ }
+ 
+ void
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/auxiliary/util/u_metrics.h work/src/xrt/auxiliary/util/u_metrics.h
+--- a/src/xrt/auxiliary/util/u_metrics.h
++++ b/src/xrt/auxiliary/util/u_metrics.h
+@@ -10,6 +10,10 @@
+ #pragma once
+ 
+ #include "xrt/xrt_compiler.h"
++#include "xrt/xrt_handles.h"
++#include "xrt/xrt_results.h"
++
++#include <stdio.h>
+ 
+ 
+ #ifdef __cplusplus
+@@ -83,6 +87,12 @@
+ void
+ u_metrics_init(void);
+ 
++xrt_result_t
++u_metrics_add_file(FILE *file, bool early_flush);
++
++xrt_result_t
++u_metrics_add_file_handle(xrt_file_handle_t handle, bool early_flush);
++
+ void
+ u_metrics_close(void);
+ 
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/include/xrt/xrt_handles.h work/src/xrt/include/xrt/xrt_handles.h
+--- a/src/xrt/include/xrt/xrt_handles.h
++++ b/src/xrt/include/xrt/xrt_handles.h
+@@ -110,6 +110,95 @@
+ 
+ /*
+  *
++ * xrt_file_handle_t
++ *
++ */
++
++#if defined(XRT_OS_WINDOWS)
++/*!
++ * The type for a file handle.
++ *
++ * On Windows, this is HANDLE.
++ */
++typedef HANDLE xrt_file_handle_t;
++
++/*!
++ * An invalid value for a file handle.
++ *
++ * Note that there may be more than one value that's invalid - use
++ * @ref xrt_file_handle_is_valid instead of comparing against this!
++ *
++ * @relates xrt_file_handle_t
++ */
++#define XRT_FILE_HANDLE_INVALID INVALID_HANDLE_VALUE
++
++/*!
++ * Check whether a file handle is valid.
++ *
++ * @public @memberof xrt_file_handle_t
++ */
++static inline bool
++xrt_file_handle_is_valid(xrt_file_handle_t handle)
++{
++	return handle != INVALID_HANDLE_VALUE;
++}
++
++/*!
++ * Close a file handle.
++ *
++ * @public @memberof xrt_file_handle_t
++ */
++static inline void
++xrt_file_handle_close(xrt_file_handle_t handle)
++{
++	CloseHandle(handle);
++}
++
++#else // !XRT_OS_WINDOWS
++
++/*!
++ * The type for a file handle.
++ *
++ * On non-Windows, this is a file descriptor.
++ */
++typedef int xrt_file_handle_t;
++
++/*!
++ * An invalid value for a file handle.
++ *
++ * Note that there may be more than one value that's invalid - use
++ * @ref xrt_file_handle_is_valid instead of comparing against this!
++ *
++ * @relates xrt_file_handle_t
++ */
++#define XRT_FILE_HANDLE_INVALID (-1)
++
++/*!
++ * Check whether a file handle is valid.
++ *
++ * @public @memberof xrt_file_handle_t
++ */
++static inline bool
++xrt_file_handle_is_valid(xrt_file_handle_t handle)
++{
++	return handle >= 0;
++}
++
++/*!
++ * Close a file handle.
++ *
++ * @public @memberof xrt_file_handle_t
++ */
++static inline void
++xrt_file_handle_close(xrt_file_handle_t handle)
++{
++	close(handle);
++}
++
++#endif // !XRT_OS_WINDOWS
++
++/*
++ *
+  * xrt_shmem_handle_t
+  *
+  */
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/include/xrt/xrt_results.h work/src/xrt/include/xrt/xrt_results.h
+--- a/src/xrt/include/xrt/xrt_results.h
++++ b/src/xrt/include/xrt/xrt_results.h
+@@ -267,4 +267,9 @@
+ 	 * The specified @ref xrt_view_type was unsupported by the callee.
+ 	 */
+ 	XRT_ERROR_UNSUPPORTED_VIEW_TYPE = -44,
++
++	/*!
++	 * Failed to allocate system memory required for the operation.
++	 */
++	XRT_ERROR_OUT_OF_MEMORY = -45,
+ } xrt_result_t;
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/ipc/server/ipc_server_handler.c work/src/xrt/ipc/server/ipc_server_handler.c
+--- a/src/xrt/ipc/server/ipc_server_handler.c
++++ b/src/xrt/ipc/server/ipc_server_handler.c
+@@ -12,6 +12,7 @@
+ 
+ #include "util/u_misc.h"
+ #include "util/u_handles.h"
++#include "util/u_metrics.h"
+ #include "util/u_pretty_print.h"
+ #include "util/u_visibility_mask.h"
+ #include "util/u_trace_marker.h"
+@@ -421,6 +422,20 @@
+ }
+ 
+ xrt_result_t
++ipc_handle_system_add_metrics_file_handle(volatile struct ipc_client_state *ics,
++                                          bool early_flush,
++                                          const xrt_file_handle_t *handles,
++                                          const uint32_t handle_count)
++{
++	IPC_TRACE_MARKER();
++
++	for (uint32_t i = 0; i < handle_count; i++) {
++		u_metrics_add_file_handle(handles[i], early_flush);
++	}
++	return XRT_SUCCESS;
++}
++
++xrt_result_t
+ ipc_handle_session_create(volatile struct ipc_client_state *ics,
+                           const struct xrt_session_info *xsi,
+                           bool create_native_compositor)
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/ipc/shared/ipc_message_channel.h work/src/xrt/ipc/shared/ipc_message_channel.h
+--- a/src/xrt/ipc/shared/ipc_message_channel.h
++++ b/src/xrt/ipc/shared/ipc_message_channel.h
+@@ -220,6 +220,62 @@
+ 
+ 
+ /*!
++ * @name File handle utilities
++ * @brief Send/receive file handles along with scalar/aggregate message data.
++ * @{
++ */
++
++/*!
++ * Receive a message along with a known number of file handles over the IPC
++ * channel.
++ *
++ * @param imc Message channel to use
++ * @param[out] out_data Pointer to the buffer to fill with data. Must not be
++ * null.
++ * @param[in] size Maximum size to read, must be greater than 0
++ * @param[out] out_handles Array of file handles to populate.  Must not be
++ * null.
++ * @param[in] handle_count Number of elements to receive into @p out_handles,
++ * must be greater than 0 and must match the value provided at the other end.
++ *
++ * @public @memberof ipc_message_channel
++ * @see xrt_file_handle_t
++ */
++xrt_result_t
++ipc_receive_handles_file(struct ipc_message_channel *imc,
++                         void *out_data,
++                         size_t size,
++                         xrt_file_handle_t *out_handles,
++                         uint32_t handle_count);
++
++
++/*!
++ * Send a message along with file handles over the IPC channel.
++ *
++ * @param imc Message channel to use
++ * @param[in] data Pointer to the data buffer to send. Must not be
++ * null: use a filler message if necessary.
++ * @param[in] size Size of data pointed-to by @p data, must be greater than 0
++ * @param[out] handles Array of file handles to send.  Must not be null.
++ * @param[in] handle_count Number of elements in @p handles, must be greater
++ * than 0. If this is variable, it must also be separately transmitted ahead of
++ * time, because the receiver must have the same value in its receive call.
++ *
++ * @public @memberof ipc_message_channel
++ * @see xrt_file_handle_t
++ */
++xrt_result_t
++ipc_send_handles_file(struct ipc_message_channel *imc,
++                      const void *data,
++                      size_t size,
++                      const xrt_file_handle_t *handles,
++                      uint32_t handle_count);
++/*!
++ * @}
++ */
++
++
++/*!
+  * @name Graphics buffer handle utilities
+  * @brief Send/receive graphics buffer handles along with scalar/aggregate
+  * message data.
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/ipc/shared/ipc_message_channel_unix.c work/src/xrt/ipc/shared/ipc_message_channel_unix.c
+--- a/src/xrt/ipc/shared/ipc_message_channel_unix.c
++++ b/src/xrt/ipc/shared/ipc_message_channel_unix.c
+@@ -252,6 +252,23 @@
+ 	return ipc_send_fds(imc, data, size, handles, handle_count);
+ }
+ 
++xrt_result_t
++ipc_receive_handles_file(
++    struct ipc_message_channel *imc, void *out_data, size_t size, xrt_file_handle_t *out_handles, uint32_t handle_count)
++{
++	return ipc_receive_fds(imc, out_data, size, out_handles, handle_count);
++}
++
++xrt_result_t
++ipc_send_handles_file(struct ipc_message_channel *imc,
++                      const void *data,
++                      size_t size,
++                      const xrt_file_handle_t *handles,
++                      uint32_t handle_count)
++{
++	return ipc_send_fds(imc, data, size, handles, handle_count);
++}
++
+ 
+ /*
+  *
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/ipc/shared/ipc_message_channel_windows.cpp work/src/xrt/ipc/shared/ipc_message_channel_windows.cpp
+--- a/src/xrt/ipc/shared/ipc_message_channel_windows.cpp
++++ b/src/xrt/ipc/shared/ipc_message_channel_windows.cpp
+@@ -214,6 +214,23 @@
+ }
+ 
+ xrt_result_t
++ipc_receive_handles_file(
++    struct ipc_message_channel *imc, void *out_data, size_t size, xrt_file_handle_t *out_handles, uint32_t handle_count)
++{
++	return ipc_receive_handles(imc, out_data, size, out_handles, handle_count);
++}
++
++xrt_result_t
++ipc_send_handles_file(struct ipc_message_channel *imc,
++                      const void *data,
++                      size_t size,
++                      const xrt_file_handle_t *handles,
++                      uint32_t handle_count)
++{
++	return ipc_send_handles(imc, data, size, handles, handle_count);
++}
++
++xrt_result_t
+ ipc_receive_handles_graphics_sync(struct ipc_message_channel *imc,
+                                   void *out_data,
+                                   size_t size,
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/ipc/shared/proto/50-system.json work/src/xrt/ipc/shared/proto/50-system.json
+--- a/src/xrt/ipc/shared/proto/50-system.json
++++ b/src/xrt/ipc/shared/proto/50-system.json
+@@ -84,5 +84,12 @@
+ 		"out": [
+ 			{"name": "view_config", "type": "struct xrt_view_config"}
+ 		]
++	},
++
++	"system_add_metrics_file_handle": {
++		"in": [
++			{"name": "early_flush", "type": "bool"}
++		],
++		"in_handles": {"type": "xrt_file_handle_t"}
+ 	}
+ }
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/targets/libmonado/libmonado.def work/src/xrt/targets/libmonado/libmonado.def
+--- a/src/xrt/targets/libmonado/libmonado.def
++++ b/src/xrt/targets/libmonado/libmonado.def
+@@ -25,3 +25,4 @@
+     mnd_root_get_device_brightness
+     mnd_root_set_device_brightness
+     mnd_root_comp_set_chroma_key_params
++    mnd_root_push_metrics_fd
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/targets/libmonado/monado.c work/src/xrt/targets/libmonado/monado.c
+--- a/src/xrt/targets/libmonado/monado.c
++++ b/src/xrt/targets/libmonado/monado.c
+@@ -770,3 +770,25 @@
+ 	default: PE("Internal error, shouldn't get here"); return MND_ERROR_OPERATION_FAILED;
+ 	}
+ }
++
++mnd_result_t
++mnd_root_push_metrics_fd(mnd_root_t *root, int fd, bool early_flush)
++{
++	CHECK_NOT_NULL(root);
++	if (fd < 0) {
++		return MND_ERROR_OPERATION_FAILED;
++	}
++
++#if defined(XRT_OS_WINDOWS)
++	xrt_file_handle_t handle = (HANDLE)_get_osfhandle(fd);
++#else
++	xrt_file_handle_t handle = fd;
++#endif
++
++	xrt_result_t xret = ipc_call_system_add_metrics_file_handle(&root->ipc_c, early_flush, &handle, 1);
++	switch (xret) {
++	case XRT_SUCCESS: return MND_SUCCESS;
++	case XRT_ERROR_IPC_FAILURE: PE("Connection error!"); return MND_ERROR_OPERATION_FAILED;
++	default: PE("Internal error, shouldn't get here"); return MND_ERROR_OPERATION_FAILED;
++	}
++}
+diff --color -urN --no-dereference -x '*.orig' -x '*.rej' base/src/xrt/targets/libmonado/monado.h work/src/xrt/targets/libmonado/monado.h
+--- a/src/xrt/targets/libmonado/monado.h
++++ b/src/xrt/targets/libmonado/monado.h
+@@ -606,6 +606,18 @@
+ mnd_root_set_chroma_key_params(
+     mnd_root_t *root, struct mnd_colour_hsv hsv_min, struct mnd_colour_hsv hsv_max, float curve, float despill);
+ 
++/*!
++ * @brief Add a file descriptor to the set of fds to write metrics to.
++ *
++ * @param root              The libmonado state.
++ * @param[in] fd            The file descriptor to write metrics to.
++ * @param[in] early_flush   Whether to buffer metrics (false) or not (true).
++ *
++ * @return MND_SUCCESS on success
++ */
++mnd_result_t
++mnd_root_push_metrics_fd(mnd_root_t *root, int fd, bool early_flush);
++
+ #ifdef __cplusplus
+ }
+ #endif

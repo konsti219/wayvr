@@ -130,7 +130,7 @@ evdev = "0.13.2"
 regex.workspace = true
 
 [features]
-default = ["openvr", "openxr", "osc", "wayland", "whisper", "x11"]
+default = ["feat-monado-metrics", "openvr", "openxr", "osc", "wayland", "whisper", "x11"]
 as-raw-xcb-connection = []
 feat-monado-metrics = []
 openvr = ["dep:json", "dep:ovr_overlay"]

@@ -1,0 +1,28 @@
+diff --git a/server/main.cpp b/server/main.cpp
+index cce6c80..1f54e8d 100644
+--- a/server/main.cpp
++++ b/server/main.cpp
+@@ -49,6 +49,10 @@
+ #include <shared/ipc_protocol.h>
+ #include <util/u_file.h>
+ 
++extern "C" {
++#include <util/u_metrics.h>
++}
++
+ #if WIVRN_USE_SYSTEMD
+ #include "start_systemd_unit.h"
+ #endif
+@@ -264,7 +268,11 @@ void start_server(configuration config)
+ 
+ 		try
+ 		{
+-			exit(ipc_server_main_common(&server_info, &server_cb, nullptr));
++			u_metrics_init();
++			int ret = ipc_server_main_common(&server_info, &server_cb, nullptr);
++			u_metrics_close();
++
++			exit(ret);
+ 		}
+ 		catch (std::exception & e)
+ 		{
