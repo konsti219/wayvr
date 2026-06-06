@@ -104,6 +104,7 @@ pub struct OverlayMeta {
     pub name: Arc<str>,
     pub category: OverlayCategory,
     pub visible: bool,
+    pub keep_visible_when_hidden: bool,
     pub icon: Option<Arc<str>>,
 }
 

@@ -145,6 +145,11 @@ impl ComponentTrait for ComponentButton {
 
 			for child in children {
 				if let Some(mut widget) = data.layout.state.widgets.get_as::<WidgetSprite>(child) {
+					// Sprites that opt out of parent coloring are decorative overlays
+					// (e.g. a badge); the button neither counts nor recolors them.
+					if matches!(widget.parent_color(), ParentColor::Ignore) {
+						continue;
+					}
 					if !state.id_sprite.is_null() && state.id_sprite != child {
 						log::error!("Button with more than one sprite!");
 					}
@@ -318,6 +323,33 @@ impl ComponentButton {
 		);
 
 		common.alterables.animations.push(anim);
+	}
+
+	/// Sets the sticky state and immediately applies its idle appearance.
+	pub fn set_sticky_state_immediate(&self, common: &mut CallbackDataCommon, sticky_down: bool) {
+		let gradient_intensity = common.state.theme.gradient_intensity;
+		let mut state = self.state.borrow_mut();
+		state.sticky_down = sticky_down;
+
+		let colors = &state.colors;
+		let bgcolor = if sticky_down {
+			colors.sticky_color
+		} else {
+			colors.color
+		};
+		let border_color = if sticky_down {
+			colors.sticky_border_color
+		} else {
+			colors.border_color
+		};
+
+		let Some(mut rect) = common.state.widgets.get_as::<WidgetRectangle>(self.data.id_rect) else {
+			return;
+		};
+		rect.params.color = bgcolor;
+		rect.params.color2 = get_color2(&bgcolor, gradient_intensity);
+		rect.params.border_color = border_color;
+		common.alterables.mark_redraw();
 	}
 }
 

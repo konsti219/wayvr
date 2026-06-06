@@ -274,11 +274,7 @@ impl View {
 		};
 	}
 
-	fn action_app_manifest_clicked(
-		&mut self,
-		manifest: steam_utils::AppManifest,
-		is_pinned: bool,
-	) -> anyhow::Result<()> {
+	fn action_app_manifest_clicked(&mut self, manifest: steam_utils::AppManifest, is_pinned: bool) -> anyhow::Result<()> {
 		views::game_launcher::mount_popup(
 			self.frontend_tasks.clone(),
 			self.executor.clone(),

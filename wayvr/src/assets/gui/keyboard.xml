@@ -140,17 +140,22 @@
     <context_menu >
       <!-- title text="${name}" /-->
       <cell translation="BAR.TOGGLE_VISIBILITY" _press="::OverlayToggle ${name}" />
+      <cell translation="BAR.KEEP_VISIBLE_WHEN_HIDDEN" _press="::OverlayToggleKeepVisibleWhenHidden ${name}" />
       <cell translation="BAR.RESET_POSITION" _press="::OverlayReset ${name}" />
     </context_menu>
   </blueprint>
 
   <!-- A screen with a shortened connector name, e.g. "H1" for HDMI-A-1 or "D2" for DP-2 -->
   <template name="Screen">
-    <Button macro="button_style" id="overlay_${idx}" tooltip_str="${name}" _context_name="${name}" _press_left="::ContextMenuOpen menu_screen" _press_right="::OverlayToggle ${name}">
+    <Button macro="button_style" id="overlay_${idx}" tooltip_str="${name}" _context_name="${name}" _press_left="::OverlayToggle ${name}" _release_right="::ContextMenuOpen menu_screen">
       <sprite width="38" height="38" src_builtin="edit/screen.svg" />
       <div position="absolute" margin_top="-7" margin_left="-1">
         <label text="${display}" size="~text_size" weight="bold" parent_color="background" />
       </div>
+      <rectangle display="${keep_visible_display}" new_pass="1" position="absolute" width="20" height="20" margin_top="-26" margin_left="26"
+        align_items="center" justify_content="center" round="50%" color="primary" border="2" border_color="background">
+        <sprite width="12" height="12" color="background" parent_color="ignore" src_builtin="edit/pin.svg" />
+      </rectangle>
     </Button>
   </template>
 
@@ -240,7 +245,7 @@
       <rectangle macro="bg_rect" padding="10" align_items="center" justify_content="space_between">
         <div gap="10">
           <Button macro="button_style" id="btn_power" _press="::ContextMenuOpen menu_shutdown">
-            <sprite width="38" height="38" color="~color_text" src="dashboard/power.svg" />
+            <sprite width="38" height="38" color="on_background" src="dashboard/power.svg" />
           </Button>
           <Button macro="button_style" id="btn_dashboard" _press="::DashToggle">
             <sprite width="38" height="38" src="watch/wayvr_dashboard_mono.svg"  />

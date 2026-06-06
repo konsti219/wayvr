@@ -55,6 +55,8 @@ pub struct OverlayWindowManager<T> {
     /// The set that will be restored by show_hide.
     /// Usually the same as current_set, except it keeps its value when current_set is hidden.
     restore_set: usize,
+    /// Screens rendered passively while the current set is hidden.
+    passive_overlays: SecondaryMap<OverlayID, ()>,
     anchor_local: Affine3A,
     watch_id: OverlayID,
     keyboard_id: OverlayID,
@@ -73,6 +75,7 @@ where
             overlays: SlotMap::<OverlayID, OverlayWindowData<T>>::with_key(),
             current_set: Some(0),
             restore_set: 0,
+            passive_overlays: SecondaryMap::new(),
             sets: vec![OverlayWindowSet::default()],
             global_set: OverlayWindowSet::default(),
             anchor_local: Affine3A::from_translation(Vec3::NEG_Z),
@@ -266,6 +269,9 @@ where
                     o.config.activate(app, true);
                 }
                 self.visible_overlays_changed(app)?;
+            }
+            OverlayTask::ToggleKeepVisibleWhenHidden(sel) => {
+                self.toggle_keep_visible_when_hidden(&sel, app)?;
             }
             OverlayTask::ToggleEditMode => {
                 self.set_edit_mode(!self.edit_mode, app)?;
@@ -1033,11 +1039,91 @@ impl<T> OverlayWindowManager<T> {
         self.switch_to_set(app, new_set, false);
     }
 
+    fn toggle_keep_visible_when_hidden(
+        &mut self,
+        selector: &OverlaySelector,
+        app: &mut AppState,
+    ) -> anyhow::Result<()> {
+        let Some(id) = self.id_by_selector(selector) else {
+            log::warn!("Overlay not found for task: {selector:?}");
+            return Ok(());
+        };
+
+        let (name, global, category) = {
+            let data = &self.overlays[id];
+            (
+                data.config.name.clone(),
+                data.config.global,
+                data.config.category,
+            )
+        };
+        if !matches!(category, OverlayCategory::Screen) {
+            log::warn!("Keep-visible mode is only supported for screen overlays");
+            return Ok(());
+        }
+
+        let parent_set = if global {
+            &mut self.global_set
+        } else {
+            &mut self.sets[self.restore_set]
+        };
+
+        let mut new_value = None;
+        if self.passive_overlays.get(id).is_some() {
+            if let Some(state) = parent_set.overlays.get_mut(id) {
+                state.keep_visible_when_hidden = !state.keep_visible_when_hidden;
+                new_value = Some(state.keep_visible_when_hidden);
+            }
+        } else if let Some(state) = self.overlays[id].config.active_state.as_mut() {
+            state.keep_visible_when_hidden = !state.keep_visible_when_hidden;
+            new_value = Some(state.keep_visible_when_hidden);
+        } else if let Some((_, state)) = parent_set
+            .hidden_overlays
+            .iter_mut()
+            .find(|(state_name, _)| state_name.as_ref() == name.as_ref())
+        {
+            state.keep_visible_when_hidden = !state.keep_visible_when_hidden;
+            new_value = Some(state.keep_visible_when_hidden);
+        } else if let Some(state) = parent_set.overlays.get_mut(id) {
+            state.keep_visible_when_hidden = !state.keep_visible_when_hidden;
+            new_value = Some(state.keep_visible_when_hidden);
+        }
+
+        let Some(new_value) = new_value else {
+            log::warn!("Could not find saved state for overlay {name}");
+            return Ok(());
+        };
+
+        if self.passive_overlays.get(id).is_some() {
+            if new_value {
+                if let Some(state) = self.overlays[id].config.active_state.as_mut() {
+                    state.keep_visible_when_hidden = true;
+                }
+            } else {
+                self.overlays[id].config.active_state = None;
+                self.passive_overlays.remove(id);
+                self.visible_overlays_changed(app)?;
+            }
+        }
+
+        self.overlays_changed(app)
+    }
+
     pub fn switch_to_set(
         &mut self,
         app: &mut AppState,
         new_set: Option<usize>,
         keep_transforms: bool,
+    ) {
+        self.switch_to_set_inner(app, new_set, keep_transforms, false);
+    }
+
+    fn switch_to_set_inner(
+        &mut self,
+        app: &mut AppState,
+        new_set: Option<usize>,
+        keep_transforms: bool,
+        keep_screens_visible: bool,
     ) {
         if new_set == self.current_set || new_set.is_some_and(|x| x >= self.sets.len()) {
             return;
@@ -1048,12 +1134,28 @@ impl<T> OverlayWindowManager<T> {
             for (id, data) in self.overlays.iter_mut().filter(|(_, d)| !d.config.global) {
                 if let Some(state) = data.config.active_state.take() {
                     log::debug!("{}: active_state → ws{}", data.config.name, current_set);
-                    ws.overlays.insert(id, state);
+                    let keep_visible = keep_screens_visible
+                        && matches!(data.config.category, OverlayCategory::Screen)
+                        && state.keep_visible_when_hidden;
+                    ws.overlays.insert(id, state.clone());
+                    if keep_visible {
+                        let mut passive_state = state;
+                        passive_state.interactable = false;
+                        data.config.active_state = Some(passive_state);
+                        self.passive_overlays.insert(id, ());
+                    }
                 }
             }
         }
 
         if let Some(new_set) = new_set {
+            for (id, ()) in &self.passive_overlays {
+                if let Some(data) = self.overlays.get_mut(id) {
+                    data.config.active_state = None;
+                }
+            }
+            self.passive_overlays.clear();
+
             let mut num_overlays = 0;
             let ws = &mut self.sets[new_set];
             for (id, data) in self.overlays.iter_mut().filter(|(_, d)| !d.config.global) {
@@ -1103,12 +1205,16 @@ impl<T> OverlayWindowManager<T> {
 
     pub fn show_hide(&mut self, app: &mut AppState) {
         if self.current_set.is_none() {
-            let hmd = snap_upright(app.input_state.hmd, Vec3A::Y);
-            app.anchor = hmd * self.anchor_local;
+            let restore_in_place = !self.passive_overlays.is_empty();
 
-            self.switch_to_set(app, Some(self.restore_set), false);
+            if !restore_in_place {
+                let hmd = snap_upright(app.input_state.hmd, Vec3A::Y);
+                app.anchor = hmd * self.anchor_local;
+            }
+
+            self.switch_to_set(app, Some(self.restore_set), restore_in_place);
         } else {
-            self.switch_to_set(app, None, false);
+            self.switch_to_set_inner(app, None, false, true);
         }
 
         let _ = self
@@ -1131,11 +1237,25 @@ impl<T> OverlayWindowManager<T> {
                 None
             };
 
+            let parent_set = if data.config.global {
+                &self.global_set
+            } else {
+                &self.sets[self.restore_set]
+            };
+            let keep_visible_when_hidden = data
+                .config
+                .active_state
+                .as_ref()
+                .or_else(|| parent_set.hidden_overlays.arc_get(&data.config.name))
+                .or_else(|| parent_set.overlays.get(id))
+                .is_some_and(|state| state.keep_visible_when_hidden);
+
             meta.push(OverlayMeta {
                 id,
                 name: data.config.name.clone(),
                 category: data.config.category,
                 visible: data.config.is_active(),
+                keep_visible_when_hidden,
                 icon,
             });
         }

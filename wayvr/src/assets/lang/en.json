@@ -34,6 +34,7 @@
 			"NONE": "Off",
 			"TITLE": "Hands-free mode"
 		},
+		"KEEP_VISIBLE_WHEN_HIDDEN": "Keep visible when overlays are hidden",
 		"RELOAD_FROM_DISK": "Reload XML from disk",
 		"RESET_POSITION": "Reset position",
 		"TOGGLE_VISIBILITY": "Toggle visibility"

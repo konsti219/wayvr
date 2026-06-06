@@ -70,6 +70,8 @@ pub struct OverlayWindowState {
 	pub angle_fade: bool,
 	#[serde(default)]
 	pub align_to_hmd: bool,
+	#[serde(default)]
+	pub keep_visible_when_hidden: bool,
 }
 
 impl Default for OverlayWindowState {
@@ -86,6 +88,7 @@ impl Default for OverlayWindowState {
 			block_input: true,
 			angle_fade: false,
 			align_to_hmd: false,
+			keep_visible_when_hidden: false,
 		}
 	}
 }
