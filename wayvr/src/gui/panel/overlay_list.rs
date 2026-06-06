@@ -19,7 +19,6 @@ use crate::{state::AppState, windowing::backend::OverlayMeta};
 pub struct OverlayList {
     overlay_buttons: SecondaryMap<OverlayID, Rc<ComponentButton>>,
     last_metas: Rc<[OverlayMeta]>,
-    last_visible: Rc<[OverlayID]>,
 }
 
 impl OverlayList {
@@ -127,6 +126,14 @@ impl OverlayList {
 
                 let (template, root) = match meta.category {
                     OverlayCategory::Screen => {
+                        params.insert(
+                            "keep_visible_display",
+                            if meta.keep_visible_when_hidden {
+                                "flex"
+                            } else {
+                                "none"
+                            },
+                        );
                         params.insert_rc(
                             "display",
                             format!(
@@ -190,9 +197,8 @@ impl OverlayList {
                             continue;
                         };
 
-                        if meta.visible {
-                            overlay_button.set_sticky_state(&mut layout.common(), true);
-                        }
+                        overlay_button
+                            .set_sticky_state_immediate(&mut layout.common(), meta.visible);
                         me.overlay_buttons.insert(meta.id, overlay_button);
                         continue;
                     }
@@ -208,9 +214,7 @@ impl OverlayList {
                 parser_state.instantiate_template(doc_params, template, layout, root, params)?;
                 let overlay_button =
                     parser_state.fetch_component_as::<ComponentButton>(&format!("overlay_{i}"))?;
-                if meta.visible {
-                    overlay_button.set_sticky_state(&mut layout.common(), true);
-                }
+                overlay_button.set_sticky_state_immediate(&mut layout.common(), meta.visible);
                 me.overlay_buttons.insert(meta.id, overlay_button);
             }
 
@@ -229,8 +233,6 @@ impl OverlayList {
                 elements_changed = true;
             }
             OverlayEventData::VisibleOverlaysChanged(overlays) => {
-                self.last_visible = overlays.clone();
-
                 let keyboard_id = self
                     .last_metas
                     .iter()
@@ -247,12 +249,12 @@ impl OverlayList {
 
                 for visible in overlays.as_ref() {
                     if let Some(btn) = overlay_buttons.remove(*visible) {
-                        btn.set_sticky_state(&mut layout.common(), true);
+                        btn.set_sticky_state_immediate(&mut layout.common(), true);
                     }
                 }
 
                 for btn in overlay_buttons.values() {
-                    btn.set_sticky_state(&mut layout.common(), false);
+                    btn.set_sticky_state_immediate(&mut layout.common(), false);
                 }
             }
             _ => {}

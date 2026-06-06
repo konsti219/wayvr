@@ -262,7 +262,7 @@ pub fn realign(transform: &mut Affine3A, hmd: &Affine3A, scale: f32, snap_angle:
     let to_hmd = hmd.translation - transform.translation;
     let up_dir: Vec3A;
 
-    if hmd.x_axis.dot(Vec3A::Y).abs() > 0.2 {
+    if hmd.x_axis.dot(Vec3A::Y).abs() > 0.2 || hmd.z_axis.dot(Vec3A::Y).abs() > 0.9 {
         // Snap upright
         up_dir = hmd.y_axis;
     } else {

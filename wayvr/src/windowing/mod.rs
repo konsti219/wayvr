@@ -31,6 +31,13 @@ pub const Z_ORDER_DEFAULT: u32 = 0;
 pub const Z_ORDER_DASHBOARD: u32 = Z_ORDER_DEFAULT;
 
 pub fn snap_upright(transform: Affine3A, up_dir: Vec3A) -> Affine3A {
+    let up_dir =
+        if transform.x_axis.dot(up_dir).abs() > 0.2 || transform.z_axis.dot(up_dir).abs() > 0.9 {
+            transform.y_axis.normalize()
+        } else {
+            up_dir
+        };
+
     if transform.x_axis.dot(up_dir).abs() < 0.2 {
         let scale = scalar_scale(&transform);
         let col_z = transform.z_axis.normalize();
