@@ -1,8 +1,10 @@
 use std::{
     collections::VecDeque,
-    io::Read,
+    io::{ErrorKind, Read},
     os::{fd::AsFd, unix::net::UnixStream},
 };
+
+use prost::Message;
 
 use crate::subsystem::monado_metrics::proto;
 
@@ -12,6 +14,7 @@ pub struct MonadoMetricsFd {
     stream_writer: UnixStream,
 
     records: VecDeque<proto::Record>,
+    read_buffer: Vec<u8>,
 }
 
 const RECORD_QUEUE_SIZE: usize = 500;
@@ -28,6 +31,7 @@ impl MonadoMetricsFd {
             stream_reader,
             stream_writer,
             records: VecDeque::new(),
+            read_buffer: Vec::new(),
         })
     }
 
@@ -47,23 +51,53 @@ impl MonadoMetricsFd {
         self.records.len() >= RECORD_QUEUE_SIZE - 1
     }
 
-    // called every frame
-    pub fn update(&mut self) {
-        let mut buf: [u8; 1024] = [0; 1024];
+    fn drain_read_buffer(&mut self) {
+        loop {
+            let Ok(message_len) = prost::decode_length_delimiter(&self.read_buffer[..]) else {
+                // The length prefix is a varint, so if 10 bytes still don't decode
+                // we know the stream is malformed rather than merely incomplete.
+                if self.read_buffer.len() >= 10 {
+                    log::error!("Malformed Monado metrics length delimiter");
+                    self.read_buffer.clear();
+                }
+                break;
+            };
 
-        while let Ok(byte_count) = self.stream_reader.read(&mut buf) {
-            if byte_count == 0 {
-                debug_assert!(false);
+            let header_len = prost::length_delimiter_len(message_len);
+            let total_len = header_len + message_len;
+            if self.read_buffer.len() < total_len {
                 break;
             }
 
-            let res: Result<proto::Record, _> = prost::Message::decode_length_delimited(&buf[..]);
-            match res {
-                Ok(record) => {
-                    self.parse_message(record);
-                }
+            match proto::Record::decode(&self.read_buffer[header_len..total_len]) {
+                Ok(record) => self.parse_message(record),
                 Err(e) => {
-                    log::error!("decode error: {e}");
+                    log::error!("Monado metrics decode error: {e}");
+                }
+            }
+
+            self.read_buffer.drain(..total_len);
+        }
+    }
+
+    // called every frame
+    pub fn update(&mut self) {
+        let mut buf = [0_u8; 4096];
+
+        loop {
+            match self.stream_reader.read(&mut buf) {
+                Ok(0) => {
+                    debug_assert!(false);
+                    break;
+                }
+                Ok(byte_count) => {
+                    self.read_buffer.extend_from_slice(&buf[..byte_count]);
+                    self.drain_read_buffer();
+                }
+                Err(e) if e.kind() == ErrorKind::WouldBlock => break,
+                Err(e) => {
+                    log::error!("Failed to read Monado metrics stream: {e}");
+                    break;
                 }
             }
         }

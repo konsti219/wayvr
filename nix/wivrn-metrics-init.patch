@@ -1,0 +1,40 @@
+From 2ba8aca3a85be3ad42fba20bed44ca50dcb2ff34 Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 16:36:45 +0200
+Subject: [PATCH] wayvr: metrics-init
+
+---
+ server/main.cpp | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/server/main.cpp b/server/main.cpp
+index af2f457d..121b0130 100644
+--- a/server/main.cpp
++++ b/server/main.cpp
+@@ -72,6 +72,10 @@
+ #include <shared/ipc_protocol.h>
+ #include <util/u_file.h>
+ 
++extern "C" {
++#include <util/u_metrics.h>
++}
++
+ // Insert the on load constructor to init trace marker.
+ U_TRACE_TARGET_SETUP(U_TRACE_WHICH_SERVICE)
+ 
+@@ -279,7 +283,11 @@ void start_server(configuration config)
+ 
+ 		try
+ 		{
+-			exit(ipc_server_main_common(&server_info, &server_cb, nullptr));
++			u_metrics_init();
++			int ret = ipc_server_main_common(&server_info, &server_cb, nullptr);
++			u_metrics_close();
++
++			exit(ret);
+ 		}
+ 		catch (std::exception & e)
+ 		{
+-- 
+2.54.0
+
