@@ -1,0 +1,28 @@
+diff --git a/server/main.cpp b/server/main.cpp
+index ce4759eb..a3e34b12 100644
+--- a/server/main.cpp
++++ b/server/main.cpp
+@@ -73,6 +73,10 @@
+ #include <shared/ipc_protocol.h>
+ #include <util/u_file.h>
+ 
++extern "C" {
++#include <util/u_metrics.h>
++}
++
+ // Insert the on load constructor to init trace marker.
+ U_TRACE_TARGET_SETUP(U_TRACE_WHICH_SERVICE)
+ 
+@@ -280,7 +284,11 @@ void start_server(configuration config)
+ 
+ 		try
+ 		{
+-			exit(ipc_server_main_common(&server_info, &server_cb, nullptr));
++			u_metrics_init();
++			int ret = ipc_server_main_common(&server_info, &server_cb, nullptr);
++			u_metrics_close();
++
++			exit(ret);
+ 		}
+ 		catch (std::exception & e)
+ 		{
