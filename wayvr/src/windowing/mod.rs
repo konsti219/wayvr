@@ -144,6 +144,13 @@ fn raycast_cylinder(
 }
 
 pub fn snap_upright(transform: Affine3A, up_dir: Vec3A) -> Affine3A {
+    let up_dir =
+        if transform.x_axis.dot(up_dir).abs() > 0.2 || transform.z_axis.dot(up_dir).abs() > 0.9 {
+            transform.y_axis.normalize()
+        } else {
+            up_dir
+        };
+
     if transform.x_axis.dot(up_dir).abs() < 0.2 {
         let scale = scalar_scale(&transform);
         let col_z = transform.z_axis.normalize();

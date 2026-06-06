@@ -123,6 +123,7 @@ pub enum OverlayTask {
     ToggleSet(usize),
     SwitchSet(Option<usize>),
     ToggleOverlay(OverlaySelector, ToggleMode),
+    ToggleKeepVisibleWhenHidden(OverlaySelector),
     ResetOverlay(OverlaySelector),
     ResizeOverlay(OverlaySelector, [u32; 2]),
     DeleteActiveSet,
