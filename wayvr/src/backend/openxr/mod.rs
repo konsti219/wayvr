@@ -263,8 +263,14 @@ pub fn openxr_run(args: &Args) -> Result<(), BackendError> {
                 .front()
                 .map_or(0f32, |time| time.elapsed().as_secs_f32());
 
-            fps_counter.len() as f32 / total_elapsed
+            if total_elapsed > 0.001 {
+                fps_counter.len() as f32 / total_elapsed
+            } else {
+                0.0
+            }
         };
+        app.watch_data.fps_current = (1.0 / app.delta_time).clamp(0.0, 999.0);
+        app.watch_data.fps_average = xr_state.fps;
 
         if !xr_frame_state.should_render {
             log::trace!("xrEndFrame");

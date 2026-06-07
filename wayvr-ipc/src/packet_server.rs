@@ -91,6 +91,14 @@ pub struct WlxInputState {
 	pub right: WlxInputStatePointer,
 }
 
+/// Control command sent to the watch's media source (e.g. forwarded to the
+/// YouTube Music tab via the wayvr-media-bridge native messaging host).
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+pub enum WatchMediaCommand {
+	PlayPause,
+	Next,
+}
+
 // "Wvr" prefixes are WayVR-specific
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +111,7 @@ pub enum PacketServer {
 	WvrProcessLaunchResponse(Serial, Result<WvrProcessHandle, String>),
 	WvrProcessListResponse(Serial, WvrProcessList),
 	WvrStateChanged(WvrStateChanged),
+	WatchMediaCommand(WatchMediaCommand),
 }
 
 impl PacketServer {
@@ -116,6 +125,7 @@ impl PacketServer {
 			PacketServer::WvrProcessLaunchResponse(serial, _) => Some(serial),
 			PacketServer::WvrProcessListResponse(serial, _) => Some(serial),
 			PacketServer::WvrStateChanged(_) => None,
+			PacketServer::WatchMediaCommand(_) => None,
 		}
 	}
 }

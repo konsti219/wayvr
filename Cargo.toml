@@ -6,6 +6,7 @@ members = [
   "uidev",
   "wayvr",
   "wayvr-ipc",
+  "wayvr-media-bridge",
   "wayvrctl",
   "wgui",
   "wlx-capture",

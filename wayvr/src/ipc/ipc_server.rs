@@ -445,6 +445,9 @@ impl Connection {
             PacketClient::WlxHandsfree(payload) => {
                 Self::handle_wlx_handsfree(params, payload);
             }
+            PacketClient::WatchMediaState(state) => {
+                params.signals.send(WayVRSignal::WatchMediaState(state));
+            }
         }
 
         Ok(())
@@ -574,5 +577,25 @@ impl WayVRServer {
     pub fn tick(&mut self, params: &mut TickParams) {
         self.accept_connections();
         self.tick_connections(params);
+    }
+
+    /// Send a packet only to clients that authenticated under `client_name`.
+    /// Unauthenticated connections are skipped, so this is a no-op when the
+    /// target client isn't running.
+    pub fn send_to_client(&mut self, client_name: &str, packet: &packet_server::PacketServer) {
+        let encoded = ipc::data_encode(packet);
+        for connection in &mut self.connections {
+            if connection
+                .auth
+                .as_ref()
+                .is_none_or(|auth| auth.client_name != client_name)
+            {
+                continue;
+            }
+
+            if let Err(e) = send_packet(&mut connection.conn, &encoded) {
+                log::error!("failed to send packet to \"{client_name}\": {e:?}");
+            }
+        }
     }
 }

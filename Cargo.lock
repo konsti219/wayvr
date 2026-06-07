@@ -5737,6 +5737,7 @@ dependencies = [
  "glam",
  "log",
  "rust-embed",
+ "serde_json",
  "tracing-subscriber",
  "ureq",
  "vulkano",
@@ -6226,6 +6227,7 @@ dependencies = [
  "glam",
  "idmap",
  "idmap-derive",
+ "image",
  "image_dds",
  "input",
  "input-linux",
@@ -6292,6 +6294,16 @@ dependencies = [
  "slotmap",
  "smallvec",
  "smol",
+]
+
+[[package]]
+name = "wayvr-media-bridge"
+version = "0.1.0"
+dependencies = [
+ "interprocess",
+ "serde",
+ "serde_json",
+ "wayvr-ipc",
 ]
 
 [[package]]

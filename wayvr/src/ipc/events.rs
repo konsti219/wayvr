@@ -74,6 +74,10 @@ where
                 }
                 _ => app.input_state.apply_handsfree_action(params),
             },
+            WayVRSignal::WatchMediaState(state) => {
+                app.watch_data.media = Some(state);
+                app.watch_data.media_updated = Some(std::time::Instant::now());
+            }
         }
     }
 

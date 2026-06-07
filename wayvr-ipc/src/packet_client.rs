@@ -88,6 +88,17 @@ pub struct WlxModifyPanelParams {
 	pub command: WlxModifyPanelCommand,
 }
 
+/// Current playback state of the watch's tracked media source (e.g. the
+/// YouTube Music tab via the wayvr-media-bridge native messaging host).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WatchMediaState {
+	pub title: Option<String>,
+	pub artist: Option<String>,
+	pub album: Option<String>,
+	pub artwork: Option<String>,
+	pub playing: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PacketClient {
 	Handshake(Handshake),
@@ -104,4 +115,5 @@ pub enum PacketClient {
 	WlxShowHide,
 	WlxSwitchSet(Option<usize>),
 	WlxHandsfree(HandsfreeParams),
+	WatchMediaState(WatchMediaState),
 }

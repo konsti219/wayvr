@@ -680,12 +680,13 @@ impl DashInterface<AppState> for DashInterfaceLive {
             let Some(monado) = &mut app.monado_state else {
                 return Vec::new();
             };
-            let Some(metrics) = &mut monado.metrics else {
+            if monado.metrics.is_none() {
                 return Vec::new(); // metrics not enabled or not available
-            };
+            }
 
-            metrics
-                .dump_records()
+            monado
+                .watch_metrics
+                .take_dashboard_records()
                 .iter()
                 .filter_map(|record| {
                     use crate::subsystem::monado_metrics::proto::record;

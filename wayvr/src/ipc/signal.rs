@@ -8,4 +8,5 @@ pub enum WayVRSignal {
     ShowHide,
     CustomTask(crate::backend::task::ModifyPanelTask),
     WindowVisibilityChanged(window::WindowHandle, bool),
+    WatchMediaState(wayvr_ipc::packet_client::WatchMediaState),
 }

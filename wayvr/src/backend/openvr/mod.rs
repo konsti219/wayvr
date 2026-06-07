@@ -148,12 +148,26 @@ pub fn openvr_run(args: &Args) -> Result<(), BackendError> {
     let pointer_lines = [lines.allocate(), lines.allocate()];
     let mut current_lines = Vec::with_capacity(2);
     let mut last_frame_time = Instant::now();
+    let mut fps_counter: VecDeque<Instant> = VecDeque::new();
 
     'main_loop: loop {
         let now = Instant::now();
         app.delta_time = (now.duration_since(last_frame_time).as_secs_f32()).clamp(0.001, 0.2); // 5 - 1000 fps
         last_frame_time = now;
         let _ = overlay_mgr.wait_frame_sync(frame_timeout);
+        fps_counter.push_back(now);
+        while let Some(time) = fps_counter.front() {
+            if now.duration_since(*time).as_secs_f32() > 1.0 {
+                fps_counter.pop_front();
+            } else {
+                break;
+            }
+        }
+        let total_elapsed = fps_counter.front().map_or(1.0, |time| {
+            now.duration_since(*time).as_secs_f32().max(0.001)
+        });
+        app.watch_data.fps_current = (1.0 / app.delta_time).clamp(0.0, 999.0);
+        app.watch_data.fps_average = fps_counter.len() as f32 / total_elapsed;
 
         if !RUNNING.load(Ordering::Relaxed) {
             log::warn!("Received shutdown signal.");

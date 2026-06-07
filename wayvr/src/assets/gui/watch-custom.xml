@@ -1,0 +1,359 @@
+<layout>
+  <theme>
+    <var key="watch_live" value="#8AF17D" />
+    <var key="watch_live_dim" value="#3A6B41" />
+    <var key="watch_warn" value="#F9BF58" />
+    <var key="watch_subtle" value="#5C7088" />
+    <var key="clock_size" value="34" />
+  </theme>
+
+  <macro
+    name="panel"
+    color="background"
+    color2="background"
+    gradient="vertical"
+    border="2"
+    border_color="outline"
+    round="8"
+    padding="6"
+    gap="6"
+    flex_direction="column" />
+
+  <macro name="decorative_rect"
+    padding="8" color="background"
+    border="2" border_color="outline" round="8" />
+
+  <macro name="button_style" padding="8" border="2" round="8" align_items="center" justify_content="center" />
+
+  <macro
+    name="profile_icon_button"
+    width="56"
+    height="56"
+    padding="8"
+    border="2"
+    round="8"
+    align_items="center"
+    justify_content="center" />
+
+  <template name="Device">
+    <rectangle macro="decorative_rect" padding_top="4" padding_bottom="4" align_items="center" gap="8">
+      <sprite width="32" height="32" src_builtin="${src}" color="on_background" />
+      <label _source="battery" _device="${idx}" size="24" weight="bold" _low_color="danger" _normal_color="primary" _charging_color="tertiary" />
+    </rectangle>
+  </template>
+
+  <template name="Hmd">
+    <Device idx="${idx}" src="watch/hmd.svg" />
+  </template>
+  <template name="LeftHand">
+    <Device idx="${idx}" src="watch/controller_l.svg" />
+  </template>
+  <template name="RightHand">
+    <Device idx="${idx}" src="watch/controller_r.svg" />
+  </template>
+  <template name="Tracker">
+    <Device idx="${idx}" src="watch/track.svg" />
+  </template>
+
+  <template name="Screen">
+    <Button macro="button_style" id="overlay_${idx}" tooltip_str="${name}" _press="::OverlayToggle ${name}">
+      <sprite width="38" height="38" src_builtin="edit/screen.svg" />
+      <div position="absolute" margin_top="-7" margin_left="-1">
+        <label text="${display}" size="18" weight="bold" parent_color="background" />
+      </div>
+    </Button>
+  </template>
+  <template name="Panel">
+    <Button macro="button_style" id="overlay_${idx}" tooltip_str="${name}" _press="::OverlayToggle ${name}">
+      <sprite width="38" height="38" src_builtin="edit/panel.svg" />
+    </Button>
+  </template>
+  <template name="Mirror">
+    <Button macro="button_style" id="overlay_${idx}" tooltip_str="${name}" _press="::OverlayToggle ${name}">
+      <sprite width="38" height="38" src_builtin="edit/mirror.svg" />
+      <div position="absolute" margin_top="5" margin_left="13">
+        <label text="${display}" size="20" weight="bold" parent_color="background" />
+      </div>
+    </Button>
+  </template>
+  <template name="App">
+    <Button macro="button_style" id="overlay_${idx}" tooltip_str="${name}" _press="::OverlayToggle ${name}">
+      <sprite width="38" height="38" src_ext="${icon}" />
+    </Button>
+  </template>
+
+  <template name="Set">
+    <Button macro="button_style" id="set_${idx}" _press="::SetToggle ${idx}" tooltip="WATCH.SWITCH_TO_SET" tooltip_side="top">
+      <sprite width="38" height="38" src_builtin="watch/set2.svg" />
+      <div position="absolute" margin_top="9">
+        <label text="${display}" size="24" weight="bold" parent_color="background" />
+      </div>
+    </Button>
+  </template>
+
+  <template name="VerticalSeparator">
+    <rectangle width="2" height="100%" color="outline" />
+  </template>
+
+  <template name="GraphCard">
+    <div flex_direction="column" gap="2" width="${width}">
+      <div flex_direction="row" justify_content="space_between" align_items="center">
+        <label text="${title}" color="on_background_variant" size="12" />
+        <label id="${value_id}" text="${value}" color="on_background" size="16" />
+      </div>
+      <BarGraph
+        id="${graph_id}"
+        width="100%"
+        height="60"
+        unit="ms"
+        limit_min="${limit_min}"
+        limit_max="${limit_max}"
+        bar_width="2"
+        capacity="${capacity}"
+        show_limits="0"
+        show_midline="1" />
+    </div>
+  </template>
+
+  <template name="StatGraphCard">
+    <div flex_direction="column" gap="2" width="${width}">
+      <div position="relative" width="100%" height="18" align_items="center">
+        <div position="absolute" width="100%" height="100%" justify_content="start" align_items="center">
+          <label id="${title_id}" text="${title}" color="on_background_variant" size="12" />
+        </div>
+        <div position="absolute" width="100%" height="100%" justify_content="center" align_items="center">
+          <div flex_direction="row" gap="10">
+            <div width="56" justify_content="end">
+              <label id="${stat1_id}" text="${stat1}" color="on_background" size="14" />
+            </div>
+            <div width="56" justify_content="start">
+              <label id="${stat2_id}" text="${stat2}" color="on_background" size="14" />
+            </div>
+          </div>
+        </div>
+        <div position="absolute" width="100%" height="100%" justify_content="end" align_items="center">
+          <label id="${value_id}" text="${value}" color="on_background" size="16" />
+        </div>
+      </div>
+      <BarGraph
+        id="${graph_id}"
+        width="100%"
+        height="60"
+        unit="ms"
+        limit_min="${limit_min}"
+        limit_max="${limit_max}"
+        bar_width="2"
+        capacity="${capacity}"
+        show_limits="0"
+        show_midline="1" />
+    </div>
+  </template>
+
+  <template name="MetricRow">
+    <div flex_direction="row" justify_content="space_between" gap="8">
+      <label text="${label}" color="on_background_variant" size="12" />
+      <label id="${value_id}" text="${value}" color="on_background" size="16" />
+    </div>
+  </template>
+
+  <template name="CoreBar">
+    <div height="32" flex_direction="column" justify_content="end">
+      <rectangle id="core_${name}" width="4" height="${height}" color="~watch_live" round="2" />
+    </div>
+  </template>
+
+  <elements>
+    <div padding="20" interactable="0" flex_direction="column" gap="6" min_width="525" max_width="525">
+      <div id="devices_root" interactable="0" gap="5" width="100%" flex_direction="row" flex_wrap="wrap">
+        <!-- Populated at runtime; these are examples for uidev -->
+        <Hmd idx="0" />
+        <LeftHand idx="1" />
+        <RightHand idx="2" />
+        <Tracker idx="3" />
+      </div>
+
+      <rectangle id="watch_panel" macro="panel" gap="6">
+        <div position="relative" width="100%" height="36" align_items="start">
+          <div position="absolute" width="100%" height="100%" justify_content="start" align_items="start">
+            <div flex_direction="row" gap="8">
+              <label text="Tue" _source="clock" _display="dow_short" size="13" color="on_background_variant" />
+              <label text="22/2/2022" _source="clock" _display="date" size="13" color="on_background_variant" />
+            </div>
+          </div>
+          <div position="absolute" width="100%" height="100%" justify_content="center" align_items="start">
+            <label text="12:35 PM" _source="clock" _display="time" size="~clock_size" color="on_background" />
+          </div>
+          <div position="absolute" width="100%" height="100%" justify_content="end" align_items="start">
+            <div flex_direction="row" gap="6" align_items="start">
+              <div flex_direction="column" gap="1" align_items="end">
+                <label text="FPS" color="on_background_variant" size="13" />
+                <label id="fps_avg_label" text="AVG --" color="on_background_variant" size="12" />
+              </div>
+              <label id="fps_current_label" text="--" color="on_background" size="28" />
+            </div>
+          </div>
+        </div>
+
+        <div flex_direction="row" gap="8" align_items="center" width="100%">
+          <image
+            id="media_cover"
+            src_ext="dash-frontend/assets/dashboard/placeholder_cover.png"
+            width="56"
+            height="56"
+            flex_shrink="0"
+            round="8"
+            border="2"
+            border_color="outline" />
+
+          <div flex_direction="column" gap="0" flex_grow="1" flex_basis="0" min_width="0" justify_content="space_between" height="56">
+            <label id="media_title_label" text="No media" wrap="1" color="on_background" size="15" />
+            <Slider id="volume_slider" width="100%" height="16" min_value="0" max_value="100" step="5" value="50" show_value="1" />
+          </div>
+
+          <div flex_direction="row" gap="5" align_items="center">
+            <Button id="btn_media_play_pause" macro="profile_icon_button">
+              <sprite id="media_icon" src_builtin="watch/media-play.svg" width="32" height="32" />
+            </Button>
+            <Button id="btn_media_next" macro="profile_icon_button">
+              <sprite src_builtin="watch/media-next.svg" width="32" height="32" />
+            </Button>
+          </div>
+        </div>
+
+        <div padding_left="2" padding_right="2" padding_top="1" padding_bottom="1">
+          <label id="notification_label" text="" width="100%" max_height="16" overflow="hidden" color="on_background_variant" size="12" />
+        </div>
+
+        <div flex_direction="row" gap="8" align_items="start" width="100%">
+          <div flex_direction="column" gap="8" flex_grow="1" flex_basis="0" min_width="0">
+            <StatGraphCard
+              title="CPU"
+              title_id="cpu_title_label"
+              stat1="--"
+              stat1_id="cpu_stat1_label"
+              stat2="--"
+              stat2_id="cpu_stat2_label"
+              value="--"
+              value_id="cpu_value_label"
+              width="100%"
+              graph_id="cpu_frametime_graph"
+              limit_min="0"
+              limit_max="12"
+              capacity="256" />
+
+            <div flex_direction="column" width="100%" gap="3">
+              <div flex_direction="row" gap="6" align_items="end">
+                <div flex_direction="row" gap="1" align_items="end" flex_grow="1">
+                  <CoreBar name="0" height="14" />
+                  <CoreBar name="1" height="24" />
+                  <CoreBar name="2" height="10" />
+                  <CoreBar name="3" height="31" />
+                  <CoreBar name="4" height="18" />
+                  <CoreBar name="5" height="12" />
+                  <CoreBar name="6" height="27" />
+                  <CoreBar name="7" height="16" />
+                  <CoreBar name="8" height="8" />
+                  <CoreBar name="9" height="19" />
+                  <CoreBar name="10" height="13" />
+                  <CoreBar name="11" height="26" />
+                  <CoreBar name="12" height="9" />
+                  <CoreBar name="13" height="22" />
+                  <CoreBar name="14" height="17" />
+                  <CoreBar name="15" height="29" />
+                  <CoreBar name="16" height="11" />
+                  <CoreBar name="17" height="21" />
+                  <CoreBar name="18" height="15" />
+                  <CoreBar name="19" height="30" />
+                  <CoreBar name="20" height="12" />
+                  <CoreBar name="21" height="18" />
+                  <CoreBar name="22" height="14" />
+                  <CoreBar name="23" height="25" />
+                  <CoreBar name="24" height="9" />
+                  <CoreBar name="25" height="20" />
+                  <CoreBar name="26" height="16" />
+                  <CoreBar name="27" height="28" />
+                  <CoreBar name="28" height="10" />
+                  <CoreBar name="29" height="17" />
+                  <CoreBar name="30" height="13" />
+                  <CoreBar name="31" height="23" />
+                </div>
+                <div width="44" justify_content="end">
+                  <label id="cpu_core_peak_label" text="--" color="on_background" size="16" />
+                </div>
+              </div>
+            </div>
+
+            <div flex_direction="column" width="100%" gap="2">
+              <MetricRow label="VRAM" value="--" value_id="vram_value_label" />
+              <MetricRow label="RAM" value="--" value_id="ram_value_label" />
+              <MetricRow label="Dropped" value="--" value_id="dropped_value_label" />
+            </div>
+          </div>
+
+          <div flex_direction="column" gap="8" flex_grow="1" flex_basis="0" min_width="0">
+            <StatGraphCard
+              title="GPU"
+              title_id="gpu_title_label"
+              stat1=""
+              stat1_id="gpu_stat1_label"
+              stat2="--"
+              stat2_id="gpu_stat2_label"
+              value="--"
+              value_id="gpu_value_label"
+              width="100%"
+              graph_id="gpu_frametime_graph"
+              limit_min="0"
+              limit_max="12"
+              capacity="256" />
+
+            <div flex_direction="row"  align_items="center">
+              <div flex_direction="row" gap="6">
+                <Button id="btn_power_eco" macro="profile_icon_button">
+                  <sprite src_builtin="watch/performance-eco.svg" width="34" height="34" />
+                </Button>
+                <Button id="btn_power_balanced" macro="profile_icon_button">
+                  <sprite src_builtin="watch/performance-balanced.svg" width="34" height="34" />
+                </Button>
+                <Button id="btn_power_max" macro="profile_icon_button">
+                  <sprite src_builtin="watch/performance-max.svg" width="34" height="34" />
+                </Button>
+              </div>
+              <label id="power_value_label" text="--&#xA;--" size="16" color="on_background" align="right" width="50" />
+            </div>
+
+            <GraphCard
+              title="NET"
+              value="--"
+              value_id="net_value_label"
+              width="100%"
+              graph_id="net_graph"
+              limit_min="0"
+              limit_max="25"
+              capacity="256" />
+          </div>
+        </div>
+      </rectangle>
+
+      <div flex_direction="row" gap="8" align_items="center">
+        <div gap="4">
+          <Button id="btn_dashboard" macro="button_style" _press="::DashToggle" tooltip="WATCH.DASHBOARD" tooltip_side="top">
+            <sprite width="40" height="40" src="watch/wayvr_dashboard_mono.svg" />
+          </Button>
+          <Button id="btn_keyboard" macro="button_style" _press="::OverlayToggle kbd" tooltip="EDIT_MODE.KEYBOARD" tooltip_side="top">
+            <sprite src_builtin="watch/keyboard.svg" width="40" height="40" />
+          </Button>
+        </div>
+        <VerticalSeparator />
+        <div id="sets_root" gap="4">
+          <Set idx="0" display="1" />
+          <Set idx="1" display="2" />
+        </div>
+        <div id="panels_root" gap="4" display="none">
+          <Screen idx="0" display="H1" name="HDMI-A-1" />
+          <Screen idx="1" display="D2" name="DP-2" />
+          <Screen idx="2" display="D3" name="DP-3" />
+        </div>
+      </div>
+    </div>
+  </elements>
+</layout>

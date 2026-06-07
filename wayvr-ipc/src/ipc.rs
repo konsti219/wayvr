@@ -25,6 +25,10 @@ impl SerialGenerator {
 pub const PROTOCOL_VERSION: u32 = 4;
 pub const CONNECTION_MAGIC: &str = "wayvr_ipc";
 
+/// Handshake name the media bridge authenticates with, used to route
+/// `WatchMediaCommand` packets to it instead of to every connected client.
+pub const MEDIA_BRIDGE_CLIENT_NAME: &str = "ytmusic";
+
 pub fn data_encode<T>(data: &T) -> Vec<u8>
 where
 	T: serde::Serialize,

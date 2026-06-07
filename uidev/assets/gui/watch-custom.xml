@@ -1,0 +1,3 @@
+<layout>
+  <include src_ext="../../wayvr/src/assets/gui/watch-custom.xml" />
+</layout>

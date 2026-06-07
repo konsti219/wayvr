@@ -1,0 +1,16 @@
+[package]
+name = "wayvr-media-bridge"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "Firefox native-messaging host bridging YouTube Music to the WayVR watch over the wayvr IPC socket"
+
+[[bin]]
+name = "wayvr-media-bridge"
+path = "src/main.rs"
+
+[dependencies]
+interprocess = "2.4.2"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+wayvr-ipc = { path = "../wayvr-ipc", default-features = false }

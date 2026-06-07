@@ -29,6 +29,10 @@ pub struct Params {
 	pub limits: (f32, f32),
 	pub unit: String,
 	pub capacity: u32,
+	pub show_limits: bool,
+	pub show_midline: bool,
+	/// Fixed bar width in pixels. 0 = auto (divide equally among all values).
+	pub bar_width: f32,
 }
 
 pub struct ValueCell {
@@ -46,8 +50,8 @@ struct Data {
 	#[allow(dead_code)]
 	id_root: WidgetID,
 
-	id_label_val_min: WidgetID,
-	id_label_val_max: WidgetID,
+	id_label_val_min: Option<WidgetID>,
+	id_label_val_max: Option<WidgetID>,
 
 	unit: String,
 	capacity: u32,
@@ -76,8 +80,11 @@ impl ComponentTrait for ComponentBarGraph {
 
 impl ComponentBarGraph {
 	fn update_limits_text(&self, state: &State, c: &mut CallbackDataCommon) -> Option<()> {
-		let mut label_val_min = c.state.widgets.get_as::<WidgetLabel>(self.data.id_label_val_min)?;
-		let mut label_val_max = c.state.widgets.get_as::<WidgetLabel>(self.data.id_label_val_max)?;
+		let id_label_val_min = self.data.id_label_val_min?;
+		let id_label_val_max = self.data.id_label_val_max?;
+
+		let mut label_val_min = c.state.widgets.get_as::<WidgetLabel>(id_label_val_min)?;
+		let mut label_val_max = c.state.widgets.get_as::<WidgetLabel>(id_label_val_max)?;
 
 		label_val_min.set_text(
 			c,
@@ -110,34 +117,43 @@ pub fn construct(
 	ess: &mut ConstructEssentials,
 	mut params: Params,
 ) -> anyhow::Result<(WidgetPair, Rc<ComponentBarGraph>)> {
+	const BORDER_COLOR: drawing::Color = drawing::Color::new(0.67, 0.67, 0.67, 0.5);
+	const BG_COLOR: drawing::Color = drawing::Color::new(0.0, 0.0, 0.0, 0.6);
+	let midline_color = BG_COLOR.lerp(&BORDER_COLOR, BORDER_COLOR.a);
+
 	params.style.flex_direction = FlexDirection::Row;
-	params.style.gap = length(4.0);
+	params.style.gap = length(if params.show_limits { 4.0 } else { 0.0 });
 
 	// override style
 	let (root, _) = ess.layout.add_child(ess.parent, WidgetDiv::create(), params.style)?;
 
-	let (vertical_texts, _) = ess.layout.add_child(
-		root.id,
-		WidgetDiv::create(),
-		taffy::Style {
-			justify_content: Some(JustifyContent::SPACE_BETWEEN),
-			flex_direction: FlexDirection::Column,
-			size: taffy::Size {
-				width: auto(),
-				height: percent(1.0),
+	let vertical_texts = if params.show_limits {
+		let (vertical_texts, _) = ess.layout.add_child(
+			root.id,
+			WidgetDiv::create(),
+			taffy::Style {
+				justify_content: Some(JustifyContent::SPACE_BETWEEN),
+				flex_direction: FlexDirection::Column,
+				size: taffy::Size {
+					width: auto(),
+					height: percent(1.0),
+				},
+				..Default::default()
 			},
-			..Default::default()
-		},
-	)?;
+		)?;
+		Some(vertical_texts)
+	} else {
+		None
+	};
 
 	let (rect, _) = ess.layout.add_child(
 		root.id,
 		WidgetRectangle::create(WidgetRectangleParams {
 			border: 2.0,
-			border_color: drawing::Color::new(1.0, 1.0, 1.0, 0.5).into(),
+			border_color: BORDER_COLOR.into(),
 			round: WLength::Units(3.0),
 			gradient: GradientMode::Vertical,
-			color: drawing::Color::new(0.0, 0.0, 0.0, 0.6).into(),
+			color: BG_COLOR.into(),
 			..Default::default()
 		}),
 		taffy::Style {
@@ -160,6 +176,9 @@ pub fn construct(
 		WidgetCustomDraw::create(WidgetCustomDrawParams {
 			func: {
 				let state = state.clone();
+				let show_midline = params.show_midline;
+				let midline_color = midline_color;
+				let bar_width = params.bar_width;
 				Box::new(move |info| {
 					let state = state.borrow();
 					let (limit_min, limit_max) = state.limits;
@@ -167,19 +186,50 @@ pub fn construct(
 					let box_width = info.boundary.width();
 					let box_height = info.boundary.height();
 
-					let bar_width = box_width / state.values.len() as f32;
+					if show_midline {
+						let line_height = 2.0;
+						let line_y = (box_height * 0.5) - (line_height * 0.5);
+						info.primitives.push(RenderPrimitive::Rectangle(
+							PrimitiveExtent {
+								boundary: drawing::Boundary {
+									pos: Vec2::new(0.0, line_y),
+									size: Vec2::new(box_width, line_height),
+								},
+								transform: info.transform.transform,
+							},
+							drawing::Rectangle {
+								color: midline_color,
+								..Default::default()
+							},
+						));
+					}
 
-					for (idx, cell) in state.values.iter().enumerate() {
+					if state.values.is_empty() {
+						return;
+					}
+
+					let (bar_width, skip) = if bar_width > 0.0 {
+						let visible = (box_width / bar_width).floor() as usize;
+						(bar_width, state.values.len().saturating_sub(visible))
+					} else {
+						(box_width / state.values.len() as f32, 0)
+					};
+
+					for (idx, cell) in state.values.iter().skip(skip).enumerate() {
 						let norm_value = ((cell.value - limit_min) / (limit_max - limit_min)).clamp(0.0, 1.0);
 						let bar_height = norm_value * box_height;
-						let bar_x = bar_width * idx as f32;
+						// Snap bar edges to integer pixel boundaries so adjacent
+						// 1px bars share the same edge rather than leaving gaps from
+						// fractional container offsets.
+						let bar_x = (bar_width * idx as f32).floor();
+						let bar_end_x = (bar_width * (idx + 1) as f32).floor();
 						let bar_y = box_height - bar_height;
 
 						info.primitives.push(RenderPrimitive::Rectangle(
 							PrimitiveExtent {
 								boundary: drawing::Boundary {
 									pos: Vec2::new(bar_x, bar_y),
-									size: Vec2::new(bar_width, bar_height),
+									size: Vec2::new(bar_end_x - bar_x, bar_height),
 								},
 								transform: info.transform.transform,
 							},
@@ -211,16 +261,22 @@ pub fn construct(
 		..Default::default()
 	};
 
-	let label = WidgetLabel::create(&mut ess.layout.state, label_params.clone());
-	let (label_val_max, _) = ess.layout.add_child(vertical_texts.id, label, Default::default())?;
+	let (id_label_val_max, id_label_val_min) = if let Some(vertical_texts) = vertical_texts {
+		let label = WidgetLabel::create(&mut ess.layout.state, label_params.clone());
+		let (label_val_max, _) = ess.layout.add_child(vertical_texts.id, label, Default::default())?;
 
-	let label = WidgetLabel::create(&mut ess.layout.state, label_params);
-	let (label_val_min, _) = ess.layout.add_child(vertical_texts.id, label, Default::default())?;
+		let label = WidgetLabel::create(&mut ess.layout.state, label_params);
+		let (label_val_min, _) = ess.layout.add_child(vertical_texts.id, label, Default::default())?;
+
+		(Some(label_val_max.id), Some(label_val_min.id))
+	} else {
+		(None, None)
+	};
 
 	let data = Rc::new(Data {
 		id_root: root.id,
-		id_label_val_min: label_val_min.id,
-		id_label_val_max: label_val_max.id,
+		id_label_val_min,
+		id_label_val_max,
 		unit: params.unit,
 		capacity: params.capacity,
 	});
