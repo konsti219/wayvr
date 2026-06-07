@@ -16,6 +16,9 @@ pub fn parse_component_bar_graph(
 	let mut capacity = 50;
 	let mut limit_max = 100.0;
 	let mut unit = String::new();
+	let mut show_limits = true;
+	let mut show_midline = false;
+	let mut bar_width = 0.0_f32;
 
 	for pair in attribs {
 		let (key, value) = (pair.attrib.as_ref(), pair.value.as_ref());
@@ -33,6 +36,15 @@ pub fn parse_component_bar_graph(
 			"unit" => {
 				unit = value.to_string();
 			}
+			"show_limits" => {
+				show_limits = matches!(value, "1" | "true");
+			}
+			"show_midline" => {
+				show_midline = matches!(value, "1" | "true");
+			}
+			"bar_width" => {
+				ctx.parse_check_f32(tag_name, key, value, &mut bar_width);
+			}
 			_ => {}
 		}
 	}
@@ -47,6 +59,9 @@ pub fn parse_component_bar_graph(
 			limits: (limit_min, limit_max),
 			unit,
 			capacity: capacity.try_into().unwrap_or(50),
+			show_limits,
+			show_midline,
+			bar_width,
 		},
 	)?;
 

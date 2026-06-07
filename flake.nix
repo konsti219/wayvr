@@ -25,6 +25,14 @@
       lib = pkgs.lib;
       # withOpenVR = system != "aarch64-linux";
 
+      uiDevRuntimeLibs = [
+        pkgs.libGL
+        pkgs.libx11
+        pkgs.libxkbcommon
+        pkgs.vulkan-loader
+        pkgs.wayland
+      ];
+
       rustToolchain = pkgs.rust-bin.stable.latest.default.override {
         extensions = [
           "clippy"
@@ -167,6 +175,46 @@
         }
       );
 
+      # Firefox native-messaging host: the bridge binary plus the host manifest
+      # pointing at it, installed where Firefox looks (lib/mozilla/...). Register
+      # via `programs.firefox.nativeMessagingHosts.packages`. The bridge only
+      # depends on serde/interprocess/wayvr-ipc, so it gets its own lean deps
+      # build instead of wayvr's heavy graphics/runtime closure.
+      bridgeArgs = {
+        inherit src;
+        strictDeps = true;
+        pname = "wayvr-media-bridge";
+        version = "0.1.0";
+        cargoExtraArgs = "--package wayvr-media-bridge";
+        doCheck = false;
+      };
+      wayvrMediaBridge = craneLib.buildPackage (
+        bridgeArgs
+        // {
+          cargoArtifacts = craneLib.buildDepsOnly bridgeArgs;
+
+          postInstall = ''
+            mkdir -p $out/lib/mozilla/native-messaging-hosts
+            substitute \
+              ${./extras/firefox-ytmusic/native-host/dev.wayvr.ytmusic.json} \
+              $out/lib/mozilla/native-messaging-hosts/dev.wayvr.ytmusic.json \
+              --replace-fail @BRIDGE_PATH@ $out/bin/wayvr-media-bridge
+          '';
+
+          meta.mainProgram = "wayvr-media-bridge";
+        }
+      );
+
+      # The browser add-on packed as an unsigned .xpi (named after its gecko id).
+      wayvrYtmusicExtension =
+        pkgs.runCommand "wayvr-ytmusic-extension"
+        {nativeBuildInputs = [pkgs.zip];}
+        ''
+          mkdir -p $out
+          cd ${./extras/firefox-ytmusic/extension}
+          zip -r -X "$out/wayvr-ytmusic@konsti.xpi" .
+        '';
+
       wivrnMonadoMetrics = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {
         version = "26.6";
 
@@ -235,6 +283,8 @@
       packages = {
         default = wayvrPkg;
         wayvr = wayvrPkg;
+        media-bridge = wayvrMediaBridge;
+        ytmusic-extension = wayvrYtmusicExtension;
         wivrn-monado-metrics = wivrnMonadoMetrics;
       };
 
@@ -252,7 +302,7 @@
         inputsFrom = [wayvrPkg];
         packages = [
           rustToolchain
-        ];
+        ] ++ uiDevRuntimeLibs;
 
         shellHook = ''
           export RUST_SRC_PATH="${rustToolchain}/lib/rustlib/src/rust/library"
@@ -261,6 +311,7 @@
           export ORT_STRATEGY="system"
           export ORT_LIB_LOCATION="${pkgs.onnxruntime}/lib"
           export ORT_PREFER_DYNAMIC_LINK="1"
+          export LD_LIBRARY_PATH="${lib.makeLibraryPath uiDevRuntimeLibs}:''${LD_LIBRARY_PATH:-}"
         '';
       };
 

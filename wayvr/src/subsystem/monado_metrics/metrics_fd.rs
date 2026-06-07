@@ -47,10 +47,6 @@ impl MonadoMetricsFd {
         records.into_iter().collect()
     }
 
-    pub fn is_full(&self) -> bool {
-        self.records.len() >= RECORD_QUEUE_SIZE - 1
-    }
-
     fn drain_read_buffer(&mut self) {
         loop {
             let Ok(message_len) = prost::decode_length_delimiter(&self.read_buffer[..]) else {

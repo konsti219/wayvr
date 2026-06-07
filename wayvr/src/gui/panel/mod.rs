@@ -366,9 +366,12 @@ impl<S: 'static> OverlayBackend for GuiPanel<S> {
         let Some(on_notify) = self.on_notify.take() else {
             return Ok(());
         };
-        on_notify(self, app, data)?;
+        let result = on_notify(self, app, data);
+        // Restore `on_notify` even when the handler errors, otherwise a single
+        // failing event permanently disables all future notifications for this
+        // panel (the panel would silently drop every subsequent event).
         self.on_notify = Some(on_notify);
-        Ok(())
+        result
     }
 
     fn on_scroll(&mut self, app: &mut AppState, hit: &PointerHit, delta: WheelDelta) {

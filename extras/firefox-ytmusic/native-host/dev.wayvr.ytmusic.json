@@ -1,0 +1,7 @@
+{
+  "name": "dev.wayvr.ytmusic",
+  "description": "WayVR YT Music native bridge",
+  "path": "@BRIDGE_PATH@",
+  "type": "stdio",
+  "allowed_extensions": ["wayvr-ytmusic@konsti"]
+}

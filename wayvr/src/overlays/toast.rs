@@ -130,6 +130,18 @@ impl Toast {
 }
 
 impl BakedToast {
+    pub const fn topic(&self) -> ToastTopic {
+        self.params.topic
+    }
+
+    pub fn title(&self) -> &str {
+        &self.title_raw
+    }
+
+    pub fn body(&self) -> &str {
+        &self.body_raw
+    }
+
     pub fn submit(self, app: &mut AppState) {
         self.submit_at(app, Instant::now());
     }

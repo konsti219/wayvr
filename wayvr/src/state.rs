@@ -89,6 +89,8 @@ pub struct AppState {
     #[cfg(feature = "pipewire")]
     pub screencast_manager: Option<ScreenCastManager>,
 
+    pub watch_data: WatchData,
+
     pub delta_time: f32,
 }
 
@@ -229,6 +231,8 @@ impl AppState {
             #[cfg(feature = "pipewire")]
             screencast_manager,
 
+            watch_data: WatchData::default(),
+
             delta_time: 1.0 / 120.0,
             session,
         };
@@ -268,6 +272,15 @@ impl AppState {
         self.dbus.tick();
 
         for toast in self.notifications.drain_pending(&self.session) {
+            if matches!(
+                toast.topic(),
+                ToastTopic::DesktopNotification | ToastTopic::XSNotification
+            ) {
+                self.watch_data.latest_notification = Some(WatchNotification {
+                    title: toast.title().to_owned(),
+                    body: toast.body().to_owned(),
+                });
+            }
             toast.submit(self);
         }
 
@@ -380,4 +393,21 @@ pub fn save_playspace_state(state: &PlayspaceState) -> anyhow::Result<()> {
     let json = serde_json5::to_string(state)?;
     std::fs::write(config_io::get_config_file_path("playspace.json5"), json)?;
     Ok(())
+}
+
+#[derive(Default, Clone)]
+pub struct WatchNotification {
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Default, Clone)]
+pub struct WatchData {
+    pub fps_current: f32,
+    pub fps_average: f32,
+    pub latest_notification: Option<WatchNotification>,
+    /// Latest media playback state pushed over IPC by the media bridge, and when
+    /// it arrived (used to fall back to "No media" once it goes stale).
+    pub media: Option<wayvr_ipc::packet_client::WatchMediaState>,
+    pub media_updated: Option<std::time::Instant>,
 }
