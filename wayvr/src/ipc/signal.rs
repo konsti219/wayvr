@@ -31,4 +31,5 @@ pub enum WayVRSignal {
     ListOverlays(u64, Serial, wayvr_ipc::packet_client::WlxOverlayListParams),
     SetWindowState(wayvr_ipc::packet_client::WlxWindowStateSetParams),
     SetOverlayVisible(String, bool),
+    WatchMediaState(wayvr_ipc::packet_client::WatchMediaState),
 }

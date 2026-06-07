@@ -494,6 +494,9 @@ impl Connection {
             PacketClient::WlxOverlaySetVisible(overlay, visible) => {
                 Self::handle_wlx_overlay_set_visible(params, overlay, visible);
             }
+            PacketClient::WatchMediaState(state) => {
+                params.signals.send(WayVRSignal::WatchMediaState(state));
+            }
         }
 
         Ok(())
@@ -634,6 +637,26 @@ impl WayVRServer {
             let _ = send_packet(&mut conn.conn, &ipc::data_encode(packet));
         } else {
             log::debug!("Dropping IPC response, connection {connection_id} no longer exists");
+        }
+    }
+
+    /// Send a packet only to clients that authenticated under `client_name`.
+    /// Unauthenticated connections are skipped, so this is a no-op when the
+    /// target client isn't running.
+    pub fn send_to_client(&mut self, client_name: &str, packet: &packet_server::PacketServer) {
+        let encoded = ipc::data_encode(packet);
+        for connection in &mut self.connections {
+            if connection
+                .auth
+                .as_ref()
+                .is_none_or(|auth| auth.client_name != client_name)
+            {
+                continue;
+            }
+
+            if let Err(e) = send_packet(&mut connection.conn, &encoded) {
+                log::error!("failed to send packet to \"{client_name}\": {e:?}");
+            }
         }
     }
 }

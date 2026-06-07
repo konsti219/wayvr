@@ -1,0 +1,31 @@
+{
+  "manifest_version": 2,
+  "name": "WayVR YT Music Bridge",
+  "version": "1.0.7",
+  "description": "Forwards YouTube Music metadata and playback controls to the WayVR watch.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "wayvr-ytmusic@konsti"
+    }
+  },
+  "permissions": [
+    "nativeMessaging",
+    "tabs"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://music.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
