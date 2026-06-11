@@ -49,6 +49,8 @@ pub struct OpenXrInputProfile {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub toggle_dashboard: Option<OpenXrInputAction>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	pub reveal_watch: Option<OpenXrInputAction>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub space_drag: Option<OpenXrInputAction>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub space_rotate: Option<OpenXrInputAction>,

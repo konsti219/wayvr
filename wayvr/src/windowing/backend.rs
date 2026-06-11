@@ -129,6 +129,8 @@ pub enum OverlayEventData {
         element: String,
         command: ModifyPanelCommand,
     },
+    /// Reveal the watch's performance section and (re)start its auto-hide timer.
+    WatchReveal,
     WvrCommand(WvrCommand),
     ResizeRequest([u32; 2]),
     ColorPaletteRefresh,
