@@ -245,6 +245,7 @@ pub(super) struct OpenXrHandSource {
     alt_click: CustomClickAction,
     show_hide: CustomClickAction,
     toggle_dashboard: CustomClickAction,
+    reveal_watch: CustomClickAction,
     space_drag: CustomClickAction,
     space_rotate: CustomClickAction,
     space_reset: CustomClickAction,
@@ -647,6 +648,8 @@ impl OpenXrPointer {
 
         pointer.now.toggle_dashboard = self.source.toggle_dashboard.state(physical_inputs);
 
+        pointer.now.reveal_watch = self.source.reveal_watch.state(physical_inputs);
+
         pointer.now.click_modifier_middle = self.source.modifier_middle.state(physical_inputs);
 
         pointer.now.move_mouse = self.source.move_mouse.state(physical_inputs);
@@ -691,6 +694,7 @@ impl OpenXrHandSource {
             alt_click: CustomClickAction::default(),
             show_hide: CustomClickAction::default(),
             toggle_dashboard: CustomClickAction::default(),
+            reveal_watch: CustomClickAction::default(),
             space_drag: CustomClickAction::default(),
             space_rotate: CustomClickAction::default(),
             space_reset: CustomClickAction::default(),
@@ -729,11 +733,12 @@ fn for_each_path(spec: Option<&OneOrMany<String>>, mut f: impl FnMut(&str)) {
     }
 }
 
-fn button_actions(profile: &OpenXrInputProfile) -> [Option<&OpenXrInputAction>; 13] {
+fn button_actions(profile: &OpenXrInputProfile) -> [Option<&OpenXrInputAction>; 14] {
     [
         profile.click.as_ref(),
         profile.click_right.as_ref(),
         profile.click_middle.as_ref(),
+        profile.reveal_watch.as_ref(),
         profile.alt_click.as_ref(),
         profile.grab.as_ref(),
         profile.show_hide.as_ref(),
@@ -1024,6 +1029,13 @@ fn suggest_bindings(
             hands,
             physical_input_map,
             |hand| &mut hand.toggle_dashboard,
+        );
+        add_button_bindings(
+            profile.reveal_watch.as_ref(),
+            profile_index,
+            hands,
+            physical_input_map,
+            |hand| &mut hand.reveal_watch,
         );
         add_button_bindings(
             profile.space_drag.as_ref(),
