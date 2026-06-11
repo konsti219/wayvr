@@ -19,7 +19,7 @@ use wgui::{
         slider::ComponentSlider,
     },
     drawing::Color,
-    event::{CallbackDataCommon, EventListenerKind},
+    event::{CallbackDataCommon, EventAlterables, EventListenerKind},
     i18n::Translation,
     parser::{Fetchable, ParseDocumentParams},
     renderer_vk::text::custom_glyph::CustomGlyphData,
@@ -45,6 +45,10 @@ use crate::{
 use wayvr_ipc::packet_server::{PacketServer, WatchMediaCommand};
 
 pub const WATCH_NAME: &str = "watch";
+
+/// How long the performance section stays revealed after a `reveal_watch`
+/// press (or the last power-button interaction) before auto-hiding again.
+const PERF_REVEAL_DURATION: Duration = Duration::from_secs(30);
 
 pub const WATCH_POS: Vec3 = vec3(-0.03, -0.01, 0.125);
 pub const WATCH_ROT: Quat = Quat::from_xyzw(-0.707_106_6, 0.000_796_361_8, 0.707_106_6, 0.0);
@@ -81,6 +85,7 @@ struct WatchIds {
     dropped_value: wgui::layout::WidgetID,
     power_value: wgui::layout::WidgetID,
     core_bars: Vec<wgui::layout::WidgetID>,
+    perf_section: wgui::layout::WidgetID,
 }
 
 struct WatchLiveState {
@@ -103,6 +108,9 @@ struct WatchLiveState {
     media_pause_glyph: Option<CustomGlyphData>,
     current_artwork: Option<String>,
     cover_rx: Option<Receiver<Option<Vec<u8>>>>,
+    /// When `Some`, the performance section is revealed until this instant,
+    /// after which it auto-hides. `None` means hidden (the default).
+    perf_visible_until: Option<Instant>,
     pending_power_idx: Rc<RefCell<Option<usize>>>,
     power_mode_watts: Rc<RefCell<[u32; 3]>>,
     amdgpu_hwmon: Option<std::path::PathBuf>,
@@ -191,6 +199,12 @@ pub fn create_watch(app: &mut AppState) -> anyhow::Result<OverlayWindowConfig> {
 
                             elems_changed = true;
                         }
+                    }
+                }
+                OverlayEventData::WatchReveal => {
+                    if let Some(live) = &mut panel.state.live {
+                        live.reveal_perf(&mut panel.layout.alterables);
+                        panel.layout.mark_redraw();
                     }
                 }
                 OverlayEventData::CustomCommand { element, command } => {
@@ -310,6 +324,7 @@ fn init_live_state(panel: &mut GuiPanel<WatchState>, app: &mut AppState) -> anyh
                     .ok()
             })
             .collect(),
+        perf_section: panel.parser_state.get_widget_id("perf_section")?,
     };
 
     let pending_volume_percent = Rc::new(RefCell::new(None));
@@ -347,11 +362,15 @@ fn init_live_state(panel: &mut GuiPanel<WatchState>, app: &mut AppState) -> anyh
         panel.add_event_listener(
             buttons[idx].base().get_id(),
             EventListenerKind::MousePress,
-            Box::new(move |common, _, _, _| {
+            Box::new(move |common, _, _, state| {
                 for (button_idx, button) in buttons.iter().enumerate() {
                     button.set_sticky_state(common, button_idx == idx);
                 }
                 *pending.borrow_mut() = Some(idx);
+                // Interacting with the power buttons keeps the perf section alive.
+                if let Some(live) = &mut state.live {
+                    live.bump_perf_timer();
+                }
                 Ok(EventResult::Consumed)
             }),
         );
@@ -441,6 +460,7 @@ fn init_live_state(panel: &mut GuiPanel<WatchState>, app: &mut AppState) -> anyh
         media_pause_glyph,
         current_artwork: None,
         cover_rx: None,
+        perf_visible_until: None,
     };
 
     for (i, btn) in live.comps.power_buttons.iter().enumerate() {
@@ -459,6 +479,7 @@ impl WatchLiveState {
             let _ = monado.set_metrics_enabled(true);
         }
 
+        self.refresh_perf_visibility(common);
         self.refresh_fps(common, app);
         self.refresh_notification(common, app);
         self.refresh_monado(common, app);
@@ -478,6 +499,33 @@ impl WatchLiveState {
         if now >= self.next_volume_refresh {
             self.refresh_volume(common);
             self.next_volume_refresh = now + Duration::from_millis(250);
+        }
+    }
+
+    /// Reveal the performance section and (re)start its auto-hide countdown.
+    fn reveal_perf(&mut self, alterables: &mut EventAlterables) {
+        self.perf_visible_until = Some(Instant::now() + PERF_REVEAL_DURATION);
+        alterables.set_widget_visible(self.ids.perf_section, true);
+    }
+
+    /// Extend the auto-hide countdown, but only while the section is revealed.
+    fn bump_perf_timer(&mut self) {
+        if self.perf_visible_until.is_some() {
+            self.perf_visible_until = Some(Instant::now() + PERF_REVEAL_DURATION);
+        }
+    }
+
+    /// Hide the performance section once its reveal window has elapsed.
+    fn refresh_perf_visibility(&mut self, common: &mut CallbackDataCommon) {
+        if self
+            .perf_visible_until
+            .is_some_and(|until| Instant::now() >= until)
+        {
+            self.perf_visible_until = None;
+            common
+                .alterables
+                .set_widget_visible(self.ids.perf_section, false);
+            common.alterables.mark_redraw();
         }
     }
 

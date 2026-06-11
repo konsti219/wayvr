@@ -254,6 +254,9 @@ fn debug_print_hand(hand: &Pointer) {
                 hand.now.toggle_dashboard
             );
         }
+        if hand.now.reveal_watch != hand.before.reveal_watch {
+            log::debug!("Hand {}: reveal_watch {}", hand.idx, hand.now.reveal_watch);
+        }
         if hand.now.space_drag != hand.before.space_drag {
             log::debug!("Hand {}: space_drag {}", hand.idx, hand.now.space_drag);
         }
@@ -355,6 +358,7 @@ pub struct PointerState {
     pub alt_click: bool,
     pub show_hide: bool,
     pub toggle_dashboard: bool,
+    pub reveal_watch: bool,
     pub space_drag: bool,
     pub space_rotate: bool,
     pub space_reset: bool,

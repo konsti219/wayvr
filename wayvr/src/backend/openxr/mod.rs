@@ -28,7 +28,7 @@ use crate::{
     overlays::{toast::Toast, watch::WATCH_NAME},
     state::AppState,
     windowing::{
-        backend::{RenderResources, RenderTarget, ShouldRender},
+        backend::{OverlayEventData, RenderResources, RenderTarget, ShouldRender},
         manager::OverlayWindowManager,
     },
 };
@@ -307,6 +307,20 @@ pub fn openxr_run(args: &Args) -> Result<(), BackendError> {
         {
             app.tasks
                 .enqueue(TaskType::Overlay(OverlayTask::ToggleDashboard));
+        }
+
+        if app
+            .input_state
+            .pointers
+            .iter()
+            .any(|p| p.now.reveal_watch && !p.before.reveal_watch)
+            && let Some(watch) = overlays.mut_by_id(watch_id)
+        {
+            let _ = watch
+                .config
+                .backend
+                .notify(&mut app, OverlayEventData::WatchReveal)
+                .inspect_err(|e| log::warn!("Error during Notify WatchReveal: {e:?}"));
         }
 
         if let Some(ref mut playspace_mover) = playspace_mover {
