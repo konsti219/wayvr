@@ -215,7 +215,7 @@
           zip -r -X "$out/wayvr-ytmusic@konsti.xpi" .
         '';
 
-      wivrnMonadoMetrics = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {
+      wivrn = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {
         version = "unstable-2026-10-02";
 
         # WiVRn's cmake/CompileGLSL.cmake embeds shaders via `hexdump`.
@@ -260,6 +260,7 @@
           (oldAttrs.patches or [])
           ++ [
             ./nix/wivrn-metrics-init.patch
+            ./nix/wivrn-disable-layer-commit-debug.patch
           ];
         postPatch =
           (oldAttrs.postPatch or "")
@@ -300,7 +301,7 @@
         wayvr = wayvrPkg;
         media-bridge = wayvrMediaBridge;
         ytmusic-extension = wayvrYtmusicExtension;
-        wivrn-monado-metrics = wivrnMonadoMetrics;
+        wivrn = wivrn;
       };
 
       apps.default = {
@@ -308,9 +309,9 @@
         program = "${wayvrPkg}/bin/wayvr";
       };
 
-      apps.wivrn-monado-metrics = {
+      apps.wivrn = {
         type = "app";
-        program = "${wivrnMonadoMetrics}/bin/wivrn-server";
+        program = "${wivrn}/bin/wivrn-server";
       };
 
       devShells.default = pkgs.mkShell {

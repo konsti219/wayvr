@@ -1,0 +1,25 @@
+From 5ecb8f0e37b45997184ce69a2d5e404f8c3a1a4a Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 16:36:46 +0200
+Subject: [PATCH] wayvr: disable-layer-commit-debug
+
+---
+ server/compositor/compositor.cpp | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/server/compositor/compositor.cpp b/server/compositor/compositor.cpp
+index 5e86dbff..d1673f3a 100644
+--- a/server/compositor/compositor.cpp
++++ b/server/compositor/compositor.cpp
+@@ -280,8 +280,6 @@ xrt_result_t compositor::layer_commit(xrt_graphics_sync_handle_t sync_handle)
+ 	// Move waited frame to rendering frame, clear waited.
+ 	comp_frame_move_and_clear_locked(&frame.rendering, &frame.waited);
+ 
+-	U_LOG_IFL_D(log_level, "frame %ld commit %d layers", frame.rendering.id, layer_accum.layer_count);
+-
+ 	if (encode_request >= 0 // encoders have not picked up the previous frame
+ 	    or not session.connected() or not session.get_offset())
+ 	{
+-- 
+2.54.0
+
