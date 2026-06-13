@@ -215,18 +215,22 @@
           zip -r -X "$out/wayvr-ytmusic@konsti.xpi" .
         '';
 
-      wivrnMonadoMetrics = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {
+      wivrn = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {
         version = "26.6";
 
         # WiVRn 26.6's cmake/CompileGLSL.cmake embeds shaders via `hexdump`.
-        nativeBuildInputs = (oldAttrs.nativeBuildInputs or []) ++ [
-          pkgs.unixtools.hexdump
-        ];
+        nativeBuildInputs =
+          (oldAttrs.nativeBuildInputs or [])
+          ++ [
+            pkgs.unixtools.hexdump
+          ];
 
         # WiVRn 26.6's dashboard now requires the kirigami-addons formcard QML module.
-        buildInputs = (oldAttrs.buildInputs or []) ++ [
-          pkgs.kdePackages.kirigami-addons
-        ];
+        buildInputs =
+          (oldAttrs.buildInputs or [])
+          ++ [
+            pkgs.kdePackages.kirigami-addons
+          ];
 
         src = pkgs.fetchFromGitHub {
           owner = "wivrn";
@@ -237,21 +241,28 @@
 
         # WiVRn 26.6's GitVersion.cmake requires GIT_COMMIT at build time, which
         # can't be inferred from the (gitless) nix source. v26.6 tag commit:
-        cmakeFlags = (oldAttrs.cmakeFlags or []) ++ [
-          "-DGIT_COMMIT=f8841585ebcc413cd2879da4d8acb2bddea1dddc"
-        ];
+        cmakeFlags =
+          (oldAttrs.cmakeFlags or [])
+          ++ [
+            "-DGIT_COMMIT=f8841585ebcc413cd2879da4d8acb2bddea1dddc"
+          ];
 
         # NOTE: wivrn-comp-target-gpu-metrics.patch was dropped for WiVRn 26.6:
         # the compositor refactor removed server/driver/wivrn_comp_target.cpp, and
         # the SystemGpuInfo record it produced is unused by wayvr (only SessionFrame,
         # emitted by the app_pacer override below, is consumed).
-        patches = (oldAttrs.patches or []) ++ [
-          ./nix/wivrn-metrics-init.patch
-        ];
-        postPatch = (oldAttrs.postPatch or "") + ''
-          cp ${./nix/wivrn-app-pacer-metrics/app_pacer.h} server/driver/app_pacer.h
-          cp ${./nix/wivrn-app-pacer-metrics/app_pacer.cpp} server/driver/app_pacer.cpp
-        '';
+        patches =
+          (oldAttrs.patches or [])
+          ++ [
+            ./nix/wivrn-metrics-init.patch
+            ./nix/wivrn-disable-layer-commit-debug.patch
+          ];
+        postPatch =
+          (oldAttrs.postPatch or "")
+          + ''
+            cp ${./nix/wivrn-app-pacer-metrics/app_pacer.h} server/driver/app_pacer.h
+            cp ${./nix/wivrn-app-pacer-metrics/app_pacer.cpp} server/driver/app_pacer.cpp
+          '';
 
         # Monado source revision pinned by WiVRn v26.6 (see its monado-rev file),
         # with WiVRn's own monado patches plus our metrics MR applied.
@@ -285,7 +296,7 @@
         wayvr = wayvrPkg;
         media-bridge = wayvrMediaBridge;
         ytmusic-extension = wayvrYtmusicExtension;
-        wivrn-monado-metrics = wivrnMonadoMetrics;
+        wivrn = wivrn;
       };
 
       apps.default = {
@@ -293,16 +304,18 @@
         program = "${wayvrPkg}/bin/wayvr";
       };
 
-      apps.wivrn-monado-metrics = {
+      apps.wivrn = {
         type = "app";
-        program = "${wivrnMonadoMetrics}/bin/wivrn-server";
+        program = "${wivrn}/bin/wivrn-server";
       };
 
       devShells.default = pkgs.mkShell {
         inputsFrom = [wayvrPkg];
-        packages = [
-          rustToolchain
-        ] ++ uiDevRuntimeLibs;
+        packages =
+          [
+            rustToolchain
+          ]
+          ++ uiDevRuntimeLibs;
 
         shellHook = ''
           export RUST_SRC_PATH="${rustToolchain}/lib/rustlib/src/rust/library"
