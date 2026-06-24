@@ -58,6 +58,8 @@ class app_pacer : public u_pacing_app
 		int64_t wake_up = 0;
 		int64_t predicted = 0;
 		int64_t begin = 0;
+		int64_t submit_begin = 0;
+		int64_t submit_end = 0;
 		int64_t delivered = 0;
 		int64_t gpu_done = 0;
 		int64_t predicted_display_time = 0;
@@ -93,6 +95,8 @@ class app_pacer : public u_pacing_app
 		        .when_delivered_ns = frame.delivered,
 		        .when_gpu_done_ns = frame.gpu_done,
 		        .discarded = frame.discarded,
+		        .when_submit_begin_ns = frame.submit_begin,
+		        .when_submit_end_ns = frame.submit_end,
 		};
 
 		u_metrics_write_session_frame(&umsf);
@@ -223,7 +227,10 @@ void app_pacer::mark_point(int64_t frame_id, enum u_timing_point point, int64_t 
 			frame.begin = when_ns;
 			break;
 		case U_TIMING_POINT_SUBMIT_BEGIN:
+			frame.submit_begin = when_ns;
+			break;
 		case U_TIMING_POINT_SUBMIT_END:
+			frame.submit_end = when_ns;
 			break;
 	}
 }

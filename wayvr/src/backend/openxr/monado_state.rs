@@ -142,11 +142,25 @@ impl MonadoWatchMetrics {
                         self.latest_cpu_ms = Some(cpu_ms);
                         Self::push_sample(&mut self.cpu_ms, &mut self.cpu_ms_count, cpu_ms);
                     }
-                    // GPU: xrEndFrame → GPU fence.
-                    if frame.when_gpu_done_ns > frame.when_delivered_ns {
+                    // GPU: submit-end → GPU fence.
+                    //
+                    // Do *not* measure from when_delivered_ns: that is stamped at
+                    // the top of xrEndFrame, before the compositor blocks the app
+                    // until the previous frame's delivery slot frees up. Once the
+                    // app becomes frame-time limited that block is a full display
+                    // period long, and counting it as GPU work adds a phantom
+                    // ~1-frame step to the graph (and, via the pacer's own
+                    // gpu_time estimate, feeds back into itself).
+                    //
+                    // when_submit_begin_ns marks the other end of that block. It is
+                    // emitted but not graphed: delivered → submit_begin is the only
+                    // view of the back-pressure, which is worth keeping reachable.
+                    if frame.when_submit_end_ns > 0
+                        && frame.when_gpu_done_ns > frame.when_submit_end_ns
+                    {
                         let gpu_ms = frame
                             .when_gpu_done_ns
-                            .saturating_sub(frame.when_delivered_ns)
+                            .saturating_sub(frame.when_submit_end_ns)
                             as f32
                             / 1_000_000.0;
                         self.latest_gpu_ms = Some(gpu_ms);
