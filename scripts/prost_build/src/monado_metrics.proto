@@ -55,6 +55,12 @@ message SessionFrame
 
 	//! Was this frame discarded.
 	bool discarded = 14;
+
+	//! When submitting app GPU work began, if the runtime reports it.
+	uint64 when_submit_begin_ns = 15;
+
+	//! When submitting app GPU work ended, if the runtime reports it.
+	uint64 when_submit_end_ns = 16;
 }
 
 message Used

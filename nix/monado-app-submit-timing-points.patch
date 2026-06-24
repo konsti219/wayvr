@@ -1,0 +1,44 @@
+--- a/src/xrt/compositor/multi/comp_multi_compositor.c
++++ b/src/xrt/compositor/multi/comp_multi_compositor.c
+@@ -659,6 +659,17 @@
+ 	 */
+ 	wait_for_wait_thread(mc);
+ 
++	/*
++	 * Everything up to here was spent waiting for the previous frame's slot
++	 * to free up, not on this frame's work, so mark the submit window as
++	 * starting now. Metrics consumers use this to separate app GPU time
++	 * from the back-pressure this function applies.
++	 */
++	now_ns = os_monotonic_get_ns();
++	os_mutex_lock(&mc->msc->list_and_timing_lock);
++	u_pa_mark_point(mc->upa, data->frame_id, U_TIMING_POINT_SUBMIT_BEGIN, now_ns);
++	os_mutex_unlock(&mc->msc->list_and_timing_lock);
++
+ 	assert(mc->progress.layer_count == 0);
+ 	U_ZERO(&mc->progress);
+ 
+@@ -797,6 +808,11 @@
+ 	struct xrt_compositor_fence *xcf = NULL;
+ 	int64_t frame_id = mc->progress.data.frame_id;
+ 
++	int64_t submit_end_ns = os_monotonic_get_ns();
++	os_mutex_lock(&mc->msc->list_and_timing_lock);
++	u_pa_mark_point(mc->upa, frame_id, U_TIMING_POINT_SUBMIT_END, submit_end_ns);
++	os_mutex_unlock(&mc->msc->list_and_timing_lock);
++
+ 	do {
+ 		if (!xrt_graphics_sync_handle_is_valid(sync_handle)) {
+ 			break;
+@@ -844,6 +860,11 @@
+ 	struct multi_compositor *mc = multi_compositor(xc);
+ 	int64_t frame_id = mc->progress.data.frame_id;
+ 
++	int64_t submit_end_ns = os_monotonic_get_ns();
++	os_mutex_lock(&mc->msc->list_and_timing_lock);
++	u_pa_mark_point(mc->upa, frame_id, U_TIMING_POINT_SUBMIT_END, submit_end_ns);
++	os_mutex_unlock(&mc->msc->list_and_timing_lock);
++
+ 	push_semaphore_to_wait_thread(mc, frame_id, xcsem, value);
+ 
+ 	return XRT_SUCCESS;
