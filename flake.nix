@@ -285,6 +285,10 @@
           # to -45, libmonado.def export reordered past WiVRn's chroma-key line).
           patches = [
             ./nix/wivrn-monado-mr2484.patch
+            ./nix/monado-session-submit-metrics.patch
+            # Monado never marks SUBMIT_BEGIN/SUBMIT_END on *app* pacers, only on
+            # the compositor pacer, so the fields above stayed 0. Emit them.
+            ./nix/monado-app-submit-timing-points.patch
           ];
           # Fail if any patch fails
           patchFlags = ["-p1" "-F0"];

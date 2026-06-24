@@ -52,6 +52,12 @@ pub struct SessionFrame {
     /// ! Was this frame discarded.
     #[prost(bool, tag = "14")]
     pub discarded: bool,
+    /// ! When submitting app GPU work began, if the runtime reports it.
+    #[prost(uint64, tag = "15")]
+    pub when_submit_begin_ns: u64,
+    /// ! When submitting app GPU work ended, if the runtime reports it.
+    #[prost(uint64, tag = "16")]
+    pub when_submit_end_ns: u64,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Used {

@@ -770,7 +770,13 @@ fn suggest_bindings(instance: &xr::Instance, hands: &mut [&mut OpenXrHandSource;
                 instance
             );
 
-            add_custom!(profile.reveal_watch, reveal_watch, hands, bindings, instance);
+            add_custom!(
+                profile.reveal_watch,
+                reveal_watch,
+                hands,
+                bindings,
+                instance
+            );
 
             add_custom!(profile.space_drag, space_drag, hands, bindings, instance);
 
