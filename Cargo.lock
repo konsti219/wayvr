@@ -6269,6 +6269,7 @@ dependencies = [
  "wayland-protocols",
  "wayland-protocols-misc",
  "wayvr-ipc",
+ "wayvr-openxr-layer-common",
  "wgui",
  "whisper-rs",
  "winit",
@@ -6304,6 +6305,22 @@ dependencies = [
  "serde",
  "serde_json",
  "wayvr-ipc",
+]
+
+[[package]]
+name = "wayvr-openxr-layer"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "openxr-sys",
+ "wayvr-openxr-layer-common",
+]
+
+[[package]]
+name = "wayvr-openxr-layer-common"
+version = "0.1.0"
+dependencies = [
+ "memmap2",
 ]
 
 [[package]]

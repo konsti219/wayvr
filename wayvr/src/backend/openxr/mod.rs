@@ -103,10 +103,12 @@ pub fn openxr_run(args: &Args) -> Result<(), BackendError> {
         .map_err(|e| log::warn!("Will not use Monado playspace mover: {e}"))
         .ok();
 
-    let mut blocker = app
-        .monado_state
-        .as_ref()
-        .map(|m| blocker::InputBlocker::new(&m.ipc));
+    let mut blocker = blocker::InputBlocker::new()
+        .map_err(|e| {
+            log::warn!("Will not use OpenXR layer input blocker: {e}");
+            e
+        })
+        .ok();
 
     let (session, mut frame_wait, mut frame_stream) = unsafe {
         let raw_session = helpers::create_overlay_session(
@@ -550,8 +552,8 @@ pub fn openxr_run(args: &Args) -> Result<(), BackendError> {
         }
     } // main_loop
 
-    if let (Some(blocker), Some(monado)) = (blocker, app.monado_state.as_mut()) {
-        blocker.unblock(&mut monado.ipc);
+    if let Some(blocker) = blocker {
+        blocker.unblock();
     }
 
     overlays.persist_layout(&mut app);

@@ -5,6 +5,8 @@ members = [
   "scripts/prost_build",
   "uidev",
   "wayvr",
+  "wayvr-openxr-layer",
+  "wayvr-openxr-layer-common",
   "wayvr-ipc",
   "wayvr-media-bridge",
   "wayvrctl",

@@ -157,10 +157,18 @@ impl OpenVrInputSource {
         system: &mut SystemManager,
         app: &mut AppState,
     ) {
-        let should_block_input_left = app.input_state.pointers[0].interaction.should_block_input
+        // Action-set priority is all-or-nothing per hand, so a trigger-only
+        // block (the watch) still takes over that hand's whole set here.
+        let should_block_input_left = app.input_state.pointers[0]
+            .interaction
+            .block_input
+            .blocks_anything()
             && app.session.config.block_game_input;
 
-        let should_block_input_right = app.input_state.pointers[1].interaction.should_block_input
+        let should_block_input_right = app.input_state.pointers[1]
+            .interaction
+            .block_input
+            .blocks_anything()
             && app.session.config.block_game_input;
 
         let aas_left = ActiveActionSet(ovr_overlay::sys::VRActiveActionSet_t {

@@ -9,6 +9,7 @@ use idmap_derive::IntegerId;
 use smallvec::{SmallVec, smallvec};
 use strum::{AsRefStr, EnumIs};
 use wayvr_ipc::packet_client::{HandsfreeAction, HandsfreeParams};
+use wayvr_openxr_layer_common::BlockMode;
 use wlx_common::common::LeftRight;
 use wlx_common::windowing::{OverlayWindowState, Positioning};
 
@@ -288,7 +289,8 @@ pub struct InteractionState {
     pub grabbed: Option<GrabData>,
     pub clicked_id: Option<OverlayID>,
     pub hovered_id: Option<OverlayID>,
-    pub should_block_input: bool,
+    /// How much of this hand's input is withheld from the running game.
+    pub block_input: BlockMode,
     pub should_block_poses: bool,
     pub kbd_block_activated: bool,
 }
@@ -300,7 +302,7 @@ impl Default for InteractionState {
             grabbed: None,
             clicked_id: None,
             hovered_id: None,
-            should_block_input: false,
+            block_input: BlockMode::None,
             should_block_poses: false,
             kbd_block_activated: false,
         }
@@ -508,7 +510,7 @@ where
     let pending_haptics = pointer.pending_haptics.take();
 
     if !pointer.tracked {
-        pointer.interaction.should_block_input = false;
+        pointer.interaction.block_input = BlockMode::None;
         pointer.interaction.should_block_poses = false;
         pointer.interaction.kbd_block_activated = false;
         return (None, pending_haptics); // no hit
@@ -569,16 +571,27 @@ where
     }
 
     if let Some(state) = hovered.config.active_state.as_ref() {
-        pointer.interaction.should_block_input = state.block_input
-            && (hovered.config.name.as_ref() != WATCH_NAME
-                || !app.session.config.block_game_input_ignore_watch);
+        pointer.interaction.block_input = if !state.block_input {
+            BlockMode::None
+        } else if hovered.config.name.as_ref() == WATCH_NAME {
+            // The watch sits in the corner of your vision the whole time, so
+            // taking every input away while it is merely hovered is too much:
+            // only the trigger it actually clicks with is worth withholding.
+            if app.session.config.block_game_input_ignore_watch {
+                BlockMode::None
+            } else {
+                BlockMode::TriggerOnly
+            }
+        } else {
+            BlockMode::All
+        };
 
         pointer.interaction.should_block_poses = state.block_input
             && app.session.config.block_poses_on_kbd_interaction
             && hovered.config.category == OverlayCategory::Keyboard
             && pointer.interaction.kbd_block_activated;
     } else {
-        pointer.interaction.should_block_input = false;
+        pointer.interaction.block_input = BlockMode::None;
         pointer.interaction.should_block_poses = false;
     }
 
@@ -670,7 +683,7 @@ fn handle_no_hit<O>(
     }
 
     let pointer = &mut app.input_state.pointers[pointer_idx];
-    pointer.interaction.should_block_input = false;
+    pointer.interaction.block_input = BlockMode::None;
     pointer.interaction.should_block_poses = false;
     pointer.interaction.kbd_block_activated = false;
 
