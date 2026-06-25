@@ -152,6 +152,29 @@
 
       cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
+      wayvrOpenXrLayerArgs = {
+        inherit src;
+        strictDeps = true;
+        pname = "wayvr-openxr-layer";
+        version = "0.1.0";
+        cargoExtraArgs = "--package wayvr-openxr-layer";
+      };
+
+      wayvrOpenXrLayer = craneLib.buildPackage (
+        wayvrOpenXrLayerArgs
+        // {
+          cargoArtifacts = craneLib.buildDepsOnly wayvrOpenXrLayerArgs;
+
+          postInstall = ''
+            mkdir -p $out/share/openxr/1/api_layers/implicit.d
+            substitute \
+              ${./extras/openxr-layer/wayvr-input-blocker-implicit.json} \
+              $out/share/openxr/1/api_layers/implicit.d/wayvr-input-blocker.json \
+              --replace-fail @LAYER_LIBRARY_PATH@ $out/lib/libwayvr_openxr_layer.so
+          '';
+        }
+      );
+
       wayvrPkg = craneLib.buildPackage (
         commonArgs
         // {
@@ -161,6 +184,19 @@
             install -D wayvr/wayvr.desktop -t $out/share/applications
             install -D wayvr/wayvr.svg -t $out/share/icons/hicolor/scalable/apps
           '';
+
+          # The OpenXR input-blocker layer lives in its own package, which is the
+          # single source of the layer .so *and* its implicit-layer manifest.
+          # Propagate it so installing `wayvr` still makes the layer discoverable
+          # (its share/openxr/... lands on XDG_DATA_DIRS via the profile), while
+          # guaranteeing exactly one manifest: even if `wayvr` and the layer are
+          # both installed they resolve to the same store path and dedupe.
+          #
+          # Do NOT copy the manifest/.so into this package: the manifest's
+          # library_path points at wayvrOpenXrLayer's store path, so a copy here
+          # would be a second manifest pointing at the same .so and re-introduce
+          # the duplicate-layer load.
+          propagatedUserEnvPkgs = [wayvrOpenXrLayer];
 
           meta = {
             description = "Your way to enjoy VR on Linux! Access your Wayland/X11 desktop from SteamVR/Monado (OpenVR+OpenXR support)";
@@ -297,6 +333,7 @@
     in {
       packages = {
         default = wayvrPkg;
+        openxr-layer = wayvrOpenXrLayer;
         wayvr = wayvrPkg;
         media-bridge = wayvrMediaBridge;
         ytmusic-extension = wayvrYtmusicExtension;
