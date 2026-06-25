@@ -99,10 +99,12 @@
 #capture_method: auto
 
 ## Monado/WiVRn only. Do not send controller input to other VR apps
-## while WayVR is being hovered. Either hand will block both hand inputs!
+## while WayVR is being hovered. Each hand is blocked on its own, unless
+## the game binds an action to both hands at once.
 #block_game_input: false
 
-## Do not block input when the watch is hovered.
+## Do not block input at all when the watch is hovered. When false, only
+## the trigger is blocked there, leaving thumbstick/grip/buttons alone.
 #block_game_input_ignore_watch: true
 
 ## Monado/WiVRn only. Do not send hand poses when interacting with the

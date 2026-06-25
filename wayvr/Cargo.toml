@@ -22,6 +22,7 @@ categories = ["games"]
 [dependencies]
 dash-frontend = { path = "../dash-frontend/" }
 wayvr-ipc = { path = "../wayvr-ipc", default-features = false }
+wayvr-openxr-layer-common = { path = "../wayvr-openxr-layer-common" }
 wgui = { path = "../wgui" }
 wlx-capture = { path = "../wlx-capture" }
 wlx-common = { path = "../wlx-common" }

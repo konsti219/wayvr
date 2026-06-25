@@ -1,0 +1,8 @@
+[package]
+name = "wayvr-openxr-layer-common"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+memmap2 = "0.9.10"

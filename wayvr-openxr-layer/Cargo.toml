@@ -1,0 +1,13 @@
+[package]
+name = "wayvr-openxr-layer"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+log.workspace = true
+openxr-sys = "0.13.1"
+wayvr-openxr-layer-common = { path = "../wayvr-openxr-layer-common" }
