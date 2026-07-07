@@ -239,6 +239,8 @@ impl CustomClickAction {
 pub(super) struct OpenXrHandSource {
     pose: xr::Action<xr::Posef>,
     click: CustomClickAction,
+    click_right: CustomClickAction,
+    click_middle: CustomClickAction,
     grab: CustomClickAction,
     alt_click: CustomClickAction,
     show_hide: CustomClickAction,
@@ -623,6 +625,8 @@ impl OpenXrPointer {
         physical_inputs: &[PhysicalInput],
     ) -> anyhow::Result<()> {
         pointer.now.click = self.source.click.state(physical_inputs);
+        pointer.now.click_right = self.source.click_right.state(physical_inputs);
+        pointer.now.click_middle = self.source.click_middle.state(physical_inputs);
 
         pointer.now.grab = self.source.grab.state(physical_inputs);
 
@@ -680,6 +684,8 @@ impl OpenXrHandSource {
         Ok(Self {
             pose: action_pose,
             click: CustomClickAction::default(),
+            click_right: CustomClickAction::default(),
+            click_middle: CustomClickAction::default(),
             grab: CustomClickAction::default(),
             scroll: action_scroll,
             alt_click: CustomClickAction::default(),
@@ -723,9 +729,11 @@ fn for_each_path(spec: Option<&OneOrMany<String>>, mut f: impl FnMut(&str)) {
     }
 }
 
-fn button_actions(profile: &OpenXrInputProfile) -> [Option<&OpenXrInputAction>; 11] {
+fn button_actions(profile: &OpenXrInputProfile) -> [Option<&OpenXrInputAction>; 13] {
     [
         profile.click.as_ref(),
+        profile.click_right.as_ref(),
+        profile.click_middle.as_ref(),
         profile.alt_click.as_ref(),
         profile.grab.as_ref(),
         profile.show_hide.as_ref(),
@@ -974,6 +982,20 @@ fn suggest_bindings(
             hands,
             physical_input_map,
             |hand| &mut hand.click,
+        );
+        add_button_bindings(
+            profile.click_right.as_ref(),
+            profile_index,
+            hands,
+            physical_input_map,
+            |hand| &mut hand.click_right,
+        );
+        add_button_bindings(
+            profile.click_middle.as_ref(),
+            profile_index,
+            hands,
+            physical_input_map,
+            |hand| &mut hand.click_middle,
         );
         add_button_bindings(
             profile.alt_click.as_ref(),

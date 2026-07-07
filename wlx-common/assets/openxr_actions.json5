@@ -27,6 +27,12 @@
 // -- click_modifier_middle --
 // while this is held, your pointer will turn PURPLE and your mouse clicks will be MIDDLE clicks
 //
+// -- click_right --
+// direct RIGHT click action (no separate click modifier needed)
+//
+// -- click_middle --
+// direct MIDDLE click action (no separate click modifier needed)
+//
 // -- move_mouse --
 // when using `focus_follows_mouse_mode`, you need to hold this for the mouse to move
 //
