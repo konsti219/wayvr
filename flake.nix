@@ -48,9 +48,9 @@
         [
           "openxr"
           "osc"
-          "x11"
           "wayland"
           "feat-monado-metrics"
+          "whisper"
         ]
         # ++ lib.optionals withOpenVR ["openvr"]
       );
@@ -67,6 +67,8 @@
           pkgs.cmake
           pkgs.pkg-config
           pkgs.rustPlatform.bindgenHook
+          # glslc, for whisper-rs's Vulkan GGML backend (GGML_VULKAN=ON)
+          pkgs.shaderc
         ];
 
         buildInputs =
@@ -76,10 +78,6 @@
             pkgs.dbus
             # libinput + udev, for the `input` crate used by input capture
             pkgs.libinput
-            pkgs.libx11
-            pkgs.libxext
-            pkgs.libxrandr
-            pkgs.libxcb
             pkgs.libxkbcommon
             pkgs.onnxruntime
             pkgs.openssl
