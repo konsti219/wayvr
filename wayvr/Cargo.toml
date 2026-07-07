@@ -95,7 +95,7 @@ regex.workspace = true
 shaderc = "0.8"
 
 [features]
-default = ["feat-monado-metrics", "openvr", "openxr", "osc", "wayland", "whisper", "x11"]
+default = ["feat-monado-metrics", "openvr", "openxr", "osc", "wayland", "whisper"]
 as-raw-xcb-connection = []
 feat-monado-metrics = []
 openvr = ["dep:json", "dep:ovr_overlay"]
