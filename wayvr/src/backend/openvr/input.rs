@@ -32,6 +32,8 @@ const PATH_HAPTICS: [&str; 2] = [
 ];
 
 const PATH_ALT_CLICK: &str = "/actions/default/in/AltClick";
+const PATH_CLICK_MIDDLE: &str = "/actions/default/in/ClickMiddle";
+const PATH_CLICK_RIGHT: &str = "/actions/default/in/ClickRight";
 const PATH_CLICK_MODIFIER_MIDDLE: &str = "/actions/default/in/ClickModifierMiddle";
 const PATH_CLICK_MODIFIER_RIGHT: &str = "/actions/default/in/ClickModifierRight";
 const PATH_CLICK: &str = "/actions/default/in/Click";
@@ -50,6 +52,8 @@ pub(super) struct OpenVrInputSource {
     hands: [OpenVrHandSource; 2],
     set_hnd: ActionSetHandle,
     click_hnd: ActionHandle,
+    click_middle_hnd: ActionHandle,
+    click_right_hnd: ActionHandle,
     grab_hnd: ActionHandle,
     scroll_hnd: ActionHandle,
     alt_click_hnd: ActionHandle,
@@ -76,6 +80,8 @@ impl OpenVrInputSource {
         let set_hnd = input.get_action_set_handle(SET_DEFAULT)?;
 
         let click_hnd = input.get_action_handle(PATH_CLICK)?;
+        let click_middle_hnd = input.get_action_handle(PATH_CLICK_MIDDLE)?;
+        let click_right_hnd = input.get_action_handle(PATH_CLICK_RIGHT)?;
         let grab_hnd = input.get_action_handle(PATH_GRAB)?;
         let scroll_hnd = input.get_action_handle(PATH_SCROLL)?;
         let alt_click_hnd = input.get_action_handle(PATH_ALT_CLICK)?;
@@ -115,6 +121,8 @@ impl OpenVrInputSource {
             hands,
             set_hnd,
             click_hnd,
+            click_middle_hnd,
+            click_right_hnd,
             grab_hnd,
             scroll_hnd,
             alt_click_hnd,
@@ -217,6 +225,16 @@ impl OpenVrInputSource {
             app_hand.now.click = input
                 .get_digital_action_data(self.click_hnd, hand.input_hnd)
                 .is_ok_and(|x| x.0.bState);
+
+            app_hand.now.click_middle = input
+                .get_digital_action_data(self.click_middle_hnd, hand.input_hnd)
+                .map(|x| x.0.bState)
+                .unwrap_or(false);
+
+            app_hand.now.click_right = input
+                .get_digital_action_data(self.click_right_hnd, hand.input_hnd)
+                .map(|x| x.0.bState)
+                .unwrap_or(false);
 
             app_hand.now.grab = input
                 .get_digital_action_data(self.grab_hnd, hand.input_hnd)

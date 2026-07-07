@@ -6,6 +6,16 @@
       "requirement": "mandatory"
     },
     {
+      "name": "/actions/default/in/ClickRight",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/default/in/ClickMiddle",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
       "name": "/actions/default/in/Grab",
       "type": "boolean",
       "requirement": "mandatory"

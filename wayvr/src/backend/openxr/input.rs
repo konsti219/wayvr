@@ -155,6 +155,8 @@ impl CustomClickAction {
 pub(super) struct OpenXrHandSource {
     pose: xr::Action<xr::Posef>,
     click: CustomClickAction,
+    click_right: CustomClickAction,
+    click_middle: CustomClickAction,
     grab: CustomClickAction,
     alt_click: CustomClickAction,
     show_hide: CustomClickAction,
@@ -489,6 +491,16 @@ impl OpenXrPointer {
     fn pointer_load_actions(&mut self, pointer: &mut Pointer, xr: &XrState) -> anyhow::Result<()> {
         pointer.now.click = self.source.click.state(pointer.before.click, xr)?;
 
+        pointer.now.click_right = self
+            .source
+            .click_right
+            .state(pointer.before.click_right, xr)?;
+
+        pointer.now.click_middle = self
+            .source
+            .click_middle
+            .state(pointer.before.click_middle, xr)?;
+
         pointer.now.grab = self.source.grab.state(pointer.before.grab, xr)?;
 
         let scroll = self
@@ -566,6 +578,8 @@ impl OpenXrHandSource {
         Ok(Self {
             pose: action_pose,
             click: CustomClickAction::new(action_set, "click", side)?,
+            click_right: CustomClickAction::new(action_set, "click_right", side)?,
+            click_middle: CustomClickAction::new(action_set, "click_middle", side)?,
             grab: CustomClickAction::new(action_set, "grab", side)?,
             scroll: action_scroll,
             alt_click: CustomClickAction::new(action_set, "alt_click", side)?,
@@ -725,6 +739,16 @@ fn suggest_bindings(instance: &xr::Instance, hands: &mut [&mut OpenXrHandSource;
 
             add_custom!(profile.click, click, hands, bindings, instance);
 
+            add_custom!(profile.click_right, click_right, hands, bindings, instance);
+
+            add_custom!(
+                profile.click_middle,
+                click_middle,
+                hands,
+                bindings,
+                instance
+            );
+
             add_custom!(profile.alt_click, alt_click, hands, bindings, instance);
 
             add_custom!(profile.grab, grab, hands, bindings, instance);
@@ -783,6 +807,8 @@ fn suggest_bindings(instance: &xr::Instance, hands: &mut [&mut OpenXrHandSource;
         }
 
         set_threshold_for!(hands, profile.click, click);
+        set_threshold_for!(hands, profile.click_right, click_right);
+        set_threshold_for!(hands, profile.click_middle, click_middle);
         set_threshold_for!(hands, profile.alt_click, alt_click);
         set_threshold_for!(hands, profile.grab, grab);
         set_threshold_for!(hands, profile.show_hide, show_hide);

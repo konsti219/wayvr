@@ -37,6 +37,10 @@ pub struct OpenXrInputProfile {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub click: Option<OpenXrInputAction>,
 	#[serde(skip_serializing_if = "Option::is_none")]
+	pub click_right: Option<OpenXrInputAction>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub click_middle: Option<OpenXrInputAction>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub grab: Option<OpenXrInputAction>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub alt_click: Option<OpenXrInputAction>,

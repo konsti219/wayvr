@@ -14,6 +14,7 @@ use wlx_common::windowing::{OverlayWindowState, Positioning};
 
 use crate::backend::task::{InputTask, OverlayTask};
 use crate::overlays::anchor::{ANCHOR_NAME, GRAB_HELP_NAME};
+use crate::overlays::keyboard::KEYBOARD_NAME;
 use crate::overlays::watch::WATCH_NAME;
 use crate::state::{AppSession, AppState};
 use crate::subsystem::hid::WheelDelta;
@@ -158,18 +159,18 @@ impl InputState {
             #[cfg(debug_assertions)]
             debug_print_hand(hand);
 
-            if hand.now.click {
+            if hand.now.any_click() {
                 hand.last_click = Instant::now();
             }
 
             // Prevent the mode from changing during a click
-            if !hand.before.click {
-                if hand.now.click_modifier_right {
+            if !hand.before.any_click() {
+                if hand.now.click_right || hand.now.click_modifier_right {
                     hand.interaction.mode = PointerMode::Right;
                     continue;
                 }
 
-                if hand.now.click_modifier_middle {
+                if hand.now.click_middle || hand.now.click_modifier_middle {
                     hand.interaction.mode = PointerMode::Middle;
                     continue;
                 }
@@ -227,6 +228,12 @@ fn debug_print_hand(hand: &Pointer) {
     {
         if hand.now.click != hand.before.click {
             log::debug!("Hand {}: click {}", hand.idx, hand.now.click);
+        }
+        if hand.now.click_right != hand.before.click_right {
+            log::debug!("Hand {}: click_right {}", hand.idx, hand.now.click_right);
+        }
+        if hand.now.click_middle != hand.before.click_middle {
+            log::debug!("Hand {}: click_middle {}", hand.idx, hand.now.click_middle);
         }
         if hand.now.grab != hand.before.grab {
             log::debug!("Hand {}: grab {}", hand.idx, hand.now.grab);
@@ -341,6 +348,8 @@ pub struct PointerState {
     pub scroll_x: f32,
     pub scroll_y: f32,
     pub click: bool,
+    pub click_right: bool,
+    pub click_middle: bool,
     pub grab: bool,
     pub grab_float: bool,
     pub alt_click: bool,
@@ -352,6 +361,12 @@ pub struct PointerState {
     pub click_modifier_right: bool,
     pub click_modifier_middle: bool,
     pub move_mouse: bool,
+}
+
+impl PointerState {
+    pub const fn any_click(&self) -> bool {
+        self.click || self.click_right || self.click_middle
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -597,16 +612,26 @@ where
 
     handle_scroll(&hit, hovered, app);
 
+    let mut click_haptics = None;
+
     // click / release
     let pointer = &mut app.input_state.pointers[hit.pointer];
-    if pointer.now.click && !pointer.before.click {
+    if pointer.now.any_click() && !pointer.before.any_click() {
         pointer.interaction.clicked_id = Some(hit.overlay);
         if hovered.config.category == OverlayCategory::Keyboard {
             pointer.interaction.kbd_block_activated = true;
         }
         update_focus(app, hovered.config.input_focus);
         hovered.config.backend.on_pointer(app, &hit, true);
-    } else if !pointer.now.click && pointer.before.click {
+
+        if hovered.config.name.as_ref() == KEYBOARD_NAME {
+            click_haptics = Some(Haptics {
+                intensity: 0.08,
+                duration: 0.03,
+                frequency: 8.0,
+            });
+        }
+    } else if !pointer.now.any_click() && pointer.before.any_click() {
         // send release event to overlay that was originally clicked
         if let Some(clicked_id) = pointer.interaction.clicked_id.take() {
             if let Some(clicked) = overlays.mut_by_id(clicked_id) {
@@ -617,7 +642,10 @@ where
         }
     }
 
-    (Some((hit, raw_hit)), haptics.or(pending_haptics))
+    (
+        Some((hit, raw_hit)),
+        haptics.or(click_haptics).or(pending_haptics),
+    )
 }
 
 fn handle_no_hit<O>(
@@ -644,8 +672,8 @@ fn handle_no_hit<O>(
 
     // in case click released while not aiming at anything
     // send release event to overlay that was originally clicked
-    if !pointer.now.click
-        && pointer.before.click
+    if !pointer.now.any_click()
+        && pointer.before.any_click()
         && let Some(clicked_id) = pointer.interaction.clicked_id.take()
         && let Some(clicked) = overlays.mut_by_id(clicked_id)
     {
@@ -912,7 +940,7 @@ where
         let scroll_factor = 90.0 * app.delta_time;
 
         if grab_anchor {
-            if pointer.now.click {
+            if pointer.now.any_click() {
                 pointer.interaction.mode = PointerMode::Special;
                 let grab_dist = grab_data.offset.translation.length().clamp(0.5, 5.0) * 0.2 + 0.4;
                 handle_scale(
@@ -930,7 +958,7 @@ where
                     pointer.now.scroll_y * scroll_factor * 0.02 * grab_dist;
                 grab_data.offset.translation.z = grab_data.offset.translation.z.min(-0.05);
             }
-            if pointer.now.click_modifier_right {
+            if pointer.now.click_right || pointer.now.click_modifier_right {
                 app.anchor = pointer.pose * grab_data.offset;
             } else {
                 app.anchor.translation =
@@ -945,7 +973,7 @@ where
             }
         } else {
             // single grab resize
-            if pointer.now.click {
+            if pointer.now.any_click() {
                 pointer.interaction.mode = PointerMode::Special;
                 let grab_dist = grab_data.offset.translation.length().clamp(0.5, 5.0) * 0.2 + 0.4;
                 handle_scale(
@@ -963,7 +991,7 @@ where
                     pointer.now.scroll_y * scroll_factor * 0.02 * grab_dist;
                 grab_data.offset.translation.z = grab_data.offset.translation.z.min(-0.05);
             }
-            if pointer.now.click_modifier_right {
+            if pointer.now.click_right || pointer.now.click_modifier_right {
                 overlay_state.transform = pointer.pose * grab_data.offset;
             } else {
                 let scale = scalar_scale(&overlay_state.transform);
