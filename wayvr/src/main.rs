@@ -176,6 +176,25 @@ fn auto_run(args: Args, used_backend: &mut Option<XrBackend>) {
                     return;
                 }
                 Err(BackendError::NotSupported) => (),
+                // The XR runtime went away underneath us (e.g. the WiVRn server
+                // was restarted mid-session, which tears down Monado and every
+                // OpenXR call starts returning INSTANCE_LOST / SESSION_LOST).
+                // Our instance can't be recovered in place, but the runtime is
+                // usually back within moments, so schedule a full restart and
+                // let `main()` respawn a fresh WayVR that reconnects to it,
+                // instead of treating this as a fatal crash.
+                Err(BackendError::OpenXrError(
+                    r @ (openxr::sys::Result::ERROR_INSTANCE_LOST
+                    | openxr::sys::Result::ERROR_SESSION_LOST),
+                )) => {
+                    used_backend.replace(XrBackend::OpenXR);
+                    log::warn!(
+                        "OpenXR runtime lost ({r:?}); the XR runtime likely restarted. \
+                         Restarting WayVR to reconnect."
+                    );
+                    RESTART.store(true, Ordering::Relaxed);
+                    return;
+                }
                 Err(e) => {
                     used_backend.replace(XrBackend::OpenXR);
                     log::error!("{e:?}");
