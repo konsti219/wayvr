@@ -249,6 +249,14 @@
           zip -r -X "$out/wayvr-ytmusic@konsti.xpi" .
         '';
 
+      xrizer = pkgs.xrizer.overrideAttrs (oldAttrs: {
+        patches =
+          (oldAttrs.patches or [])
+          ++ [
+            ./nix/xrizer-loneecho.patch
+          ];
+      });
+
       wivrn = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {
         version = "unstable-2026-10-02";
 
@@ -340,6 +348,7 @@
         wayvr = wayvrPkg;
         media-bridge = wayvrMediaBridge;
         ytmusic-extension = wayvrYtmusicExtension;
+        xrizer = xrizer;
         wivrn = wivrn;
       };
 
