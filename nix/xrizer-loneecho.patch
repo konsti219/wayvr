@@ -1,0 +1,394 @@
+diff --git a/openvr/build.rs b/openvr/build.rs
+index 0b96b2d..9c7dd12 100644
+--- a/openvr/build.rs
++++ b/openvr/build.rs
+@@ -150,6 +150,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
+         "IVRScreenshots",
+         "IVRClientCore",
+         "IVRChaperone",
++        "IVRChaperoneSetup",
+         "IVRApplications",
+         "IVRSettings",
+     ];
+diff --git a/src/applications.rs b/src/applications.rs
+index 9b7d89a..32f9755 100644
+--- a/src/applications.rs
++++ b/src/applications.rs
+@@ -162,10 +162,20 @@ impl vr::IVRApplications008_Interface for Applications {
+     fn GetApplicationKeyByProcessId(
+         &self,
+         _: u32,
+-        _: *mut c_char,
+-        _: u32,
++        key: *mut c_char,
++        key_capacity: u32,
+     ) -> vr::EVRApplicationError {
+-        todo!()
++        const FALLBACK_KEY: &[u8] = b"xrizer.application\0";
++        if key.is_null() {
++            return vr::EVRApplicationError::InvalidParameter;
++        }
++        if (key_capacity as usize) < FALLBACK_KEY.len() {
++            return vr::EVRApplicationError::BufferTooSmall;
++        }
++        unsafe {
++            std::ptr::copy_nonoverlapping(FALLBACK_KEY.as_ptr(), key.cast(), FALLBACK_KEY.len());
++        }
++        vr::EVRApplicationError::None
+     }
+     fn GetApplicationKeyByIndex(&self, _: u32, _: *mut c_char, _: u32) -> vr::EVRApplicationError {
+         todo!()
+diff --git a/src/clientcore.rs b/src/clientcore.rs
+index 1590702..ca00368 100644
+--- a/src/clientcore.rs
++++ b/src/clientcore.rs
+@@ -1,6 +1,7 @@
+ use crate::{
+     applications::Applications,
+     chaperone::Chaperone,
++    chaperone_setup::ChaperoneSetup,
+     compositor::Compositor,
+     input::Input,
+     misc_unknown::UnknownInterfaces,
+@@ -192,8 +193,17 @@ impl IVRClientCore003_Interface for ClientCore {
+         self.interface_store.lock().unwrap().clear();
+ 
+         let mut openxr = self.openxr.write().unwrap();
+-        assert_eq!(Arc::strong_count(openxr.as_ref().unwrap()), 1);
+-        openxr.take();
++        let Some(data) = openxr.take() else {
++            warn!("ClientCore::Cleanup called without an active OpenXR instance");
++            return;
++        };
++        let references = Arc::strong_count(&data);
++        if references != 1 {
++            // Some applications shut OpenVR down while a worker thread still
++            // owns an interface. Those Arcs keep OpenXrData alive safely; an
++            // assertion here only turns normal teardown into a process abort.
++            warn!("ClientCore::Cleanup retaining {references} OpenXR references during teardown");
++        }
+     }
+     fn GetIDForVRInitError(&self, _: vr::EVRInitError) -> *const c_char {
+         std::ptr::null()
+@@ -233,6 +243,7 @@ impl IVRClientCore003_Interface for ClientCore {
+                 })
+             })
+             .or_else(|| self.try_interface(interface, |_| Chaperone::new(openxr.clone())))
++            .or_else(|| self.try_interface(interface, |_| ChaperoneSetup::default()))
+             .or_else(|| self.try_interface(interface, |_| Applications::default()))
+             .or_else(|| self.try_interface(interface, |_| OverlayView::default()))
+             .or_else(|| self.try_interface(interface, |_| Screenshots::default()))
+@@ -253,6 +264,7 @@ impl IVRClientCore003_Interface for ClientCore {
+                 RenderModels::supported_versions(),
+                 OverlayMan::supported_versions(),
+                 Chaperone::supported_versions(),
++                ChaperoneSetup::supported_versions(),
+                 Applications::supported_versions(),
+                 OverlayView::supported_versions(),
+                 Screenshots::supported_versions(),
+@@ -300,16 +312,17 @@ impl<T: InterfaceImpl> Injected<T> {
+         self.item.set(item).unwrap();
+     }
+     pub fn get(&self) -> Option<Arc<T>> {
+-        self.item
+-            .get()
+-            .or_else(|| {
++        let item = match self.item.get() {
++            Some(item) => item,
++            None => {
+                 let item: Arc<ErasedInterface> = self.store.lock().unwrap().get::<T>()?;
+-                self.item
+-                    .set(Arc::downgrade(&item))
+-                    .unwrap_or_else(|_| unreachable!());
+-                Some(self.item.get().unwrap())
+-            })
+-            .and_then(|i| Some(i.upgrade()?.downcast().unwrap()))
++                // Another caller may win this race; both weak pointers refer to the same
++                // interface stored above, so using the winner is correct.
++                let _ = self.item.set(Arc::downgrade(&item));
++                self.item.get().unwrap()
++            }
++        };
++        Some(item.upgrade()?.downcast().unwrap())
+     }
+ 
+     pub fn force(&self, init: impl FnOnce(&Injector) -> T) -> Arc<T> {
+diff --git a/src/compositor.rs b/src/compositor.rs
+index 6eaebd6..45a95fd 100644
+--- a/src/compositor.rs
++++ b/src/compositor.rs
+@@ -307,17 +307,30 @@ impl vr::IVRCompositor029_Interface for Compositor {
+     fn GetPosesForFrame(
+         &self,
+         _unPosePredictionID: u32,
+-        _pPoseArray: *mut vr::TrackedDevicePose_t,
+-        _unPoseArrayCount: u32,
++        pPoseArray: *mut vr::TrackedDevicePose_t,
++        unPoseArrayCount: u32,
+     ) -> vr::EVRCompositorError {
+-        todo!()
++        // OpenXR does not retain SteamVR's historical poses by prediction ID.
++        // Return the freshest poses, which is also what OpenVR permits when the
++        // requested ID names the current frame.
++        if unPoseArrayCount > 0 && pPoseArray.is_null() {
++            return vr::EVRCompositorError::RequestFailed;
++        }
++
++        self.GetLastPoses(pPoseArray, unPoseArrayCount, std::ptr::null_mut(), 0)
+     }
+     fn GetLastPosePredictionIDs(
+         &self,
+-        _pRenderPosePredictionID: *mut u32,
+-        _pGamePosePredictionID: *mut u32,
++        pRenderPosePredictionID: *mut u32,
++        pGamePosePredictionID: *mut u32,
+     ) -> vr::EVRCompositorError {
+-        crate::warn_unimplemented!("GetLastPosePredictionIDs");
++        let frame_id = self.metrics.index.load(Ordering::Relaxed);
++        if !pRenderPosePredictionID.is_null() {
++            unsafe { pRenderPosePredictionID.write(frame_id) };
++        }
++        if !pGamePosePredictionID.is_null() {
++            unsafe { pGamePosePredictionID.write(frame_id) };
++        }
+         vr::EVRCompositorError::None
+     }
+     fn GetCompositorBenchmarkResults(
+diff --git a/src/lib.rs b/src/lib.rs
+index eb8ab79..a64da9f 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -2,6 +2,7 @@
+ 
+ mod applications;
+ mod chaperone;
++mod chaperone_setup;
+ mod clientcore;
+ mod compositor;
+ mod graphics_backends;
+diff --git a/src/overlay.rs b/src/overlay.rs
+index 528d8fd..67e4a4f 100644
+--- a/src/overlay.rs
++++ b/src/overlay.rs
+@@ -775,7 +775,7 @@ impl vr::IVROverlay028_Interface for OverlayMan {
+     }
+ 
+     fn CloseMessageOverlay(&self) {
+-        todo!()
++        crate::warn_unimplemented!("CloseMessageOverlay");
+     }
+     fn ShowMessageOverlay(
+         &self,
+@@ -786,7 +786,8 @@ impl vr::IVROverlay028_Interface for OverlayMan {
+         _: *const c_char,
+         _: *const c_char,
+     ) -> vr::VRMessageOverlayResponse {
+-        todo!()
++        crate::warn_unimplemented!("ShowMessageOverlay");
++        vr::VRMessageOverlayResponse::ButtonPress_0
+     }
+     fn SetKeyboardPositionForOverlay(&self, _: vr::VROverlayHandle_t, _: vr::HmdRect2_t) {
+         todo!()
+diff --git a/src/system.rs b/src/system.rs
+index c12c23e..8a21ae6 100644
+--- a/src/system.rs
++++ b/src/system.rs
+@@ -784,11 +784,73 @@ impl vr::IVRSystem026_Interface for System {
+     }
+     fn ApplyTransform(
+         &self,
+-        _: *mut vr::TrackedDevicePose_t,
+-        _: *const vr::TrackedDevicePose_t,
+-        _: *const vr::HmdMatrix34_t,
++        output_pose: *mut vr::TrackedDevicePose_t,
++        tracked_device_pose: *const vr::TrackedDevicePose_t,
++        transform: *const vr::HmdMatrix34_t,
+     ) {
+-        todo!()
++        if output_pose.is_null() || tracked_device_pose.is_null() || transform.is_null() {
++            return;
++        }
++
++        // ApplyTransform is also allowed to operate in place, so copy both inputs before
++        // touching the output. OpenVR's matrices map local coordinates to their parent:
++        // the requested local transform is therefore post-multiplied onto the device pose.
++        let (mut output, transform) = unsafe {
++            (
++                std::ptr::read(tracked_device_pose),
++                std::ptr::read(transform),
++            )
++        };
++
++        let matrix_parts = |matrix: &vr::HmdMatrix34_t| {
++            (
++                Mat3::from_cols(
++                    Vec3::new(matrix.m[0][0], matrix.m[1][0], matrix.m[2][0]),
++                    Vec3::new(matrix.m[0][1], matrix.m[1][1], matrix.m[2][1]),
++                    Vec3::new(matrix.m[0][2], matrix.m[1][2], matrix.m[2][2]),
++                ),
++                Vec3::new(matrix.m[0][3], matrix.m[1][3], matrix.m[2][3]),
++            )
++        };
++
++        let (device_rotation, device_translation) = matrix_parts(&output.mDeviceToAbsoluteTracking);
++        let (local_rotation, local_translation) = matrix_parts(&transform);
++        let output_rotation = device_rotation * local_rotation;
++        let output_translation = device_rotation * local_translation + device_translation;
++        let columns = output_rotation.to_cols_array_2d();
++        output.mDeviceToAbsoluteTracking = vr::HmdMatrix34_t {
++            m: [
++                [
++                    columns[0][0],
++                    columns[1][0],
++                    columns[2][0],
++                    output_translation.x,
++                ],
++                [
++                    columns[0][1],
++                    columns[1][1],
++                    columns[2][1],
++                    output_translation.y,
++                ],
++                [
++                    columns[0][2],
++                    columns[1][2],
++                    columns[2][2],
++                    output_translation.z,
++                ],
++            ],
++        };
++
++        // A local translation changes the velocity at the output origin. Both OpenVR
++        // velocity vectors are expressed in absolute tracking space, so only the
++        // tangential velocity of that offset needs to be added.
++        let angular_velocity = Vec3::from_array(output.vAngularVelocity.v);
++        let offset_in_tracking_space = device_rotation * local_translation;
++        output.vVelocity = (Vec3::from_array(output.vVelocity.v)
++            + angular_velocity.cross(offset_in_tracking_space))
++        .into();
++
++        unsafe { std::ptr::write(output_pose, output) };
+     }
+     fn GetTrackedDeviceActivityLevel(
+         &self,
+diff --git a/src/chaperone_setup.rs b/src/chaperone_setup.rs
+new file mode 100644
+index 0000000..3ad070f
+--- /dev/null
++++ b/src/chaperone_setup.rs
+@@ -0,0 +1,115 @@
++use openvr as vr;
++
++#[derive(Default, macros::InterfaceImpl)]
++#[interface = "IVRChaperoneSetup"]
++#[versions(006)]
++pub struct ChaperoneSetup {
++    vtables: Vtables,
++}
++
++impl vr::IVRChaperoneSetup006_Interface for ChaperoneSetup {
++    fn CommitWorkingCopy(&self, _: vr::EChaperoneConfigFile) -> bool {
++        true
++    }
++
++    fn RevertWorkingCopy(&self) {}
++
++    fn GetWorkingPlayAreaSize(&self, size_x: *mut f32, size_z: *mut f32) -> bool {
++        unsafe {
++            if let Some(size_x) = size_x.as_mut() {
++                *size_x = 1.0;
++            }
++            if let Some(size_z) = size_z.as_mut() {
++                *size_z = 1.0;
++            }
++        }
++        true
++    }
++
++    fn GetWorkingPlayAreaRect(&self, rect: *mut vr::HmdQuad_t) -> bool {
++        unsafe {
++            if let Some(rect) = rect.as_mut() {
++                *rect = Default::default();
++            }
++        }
++        true
++    }
++
++    fn GetWorkingCollisionBoundsInfo(&self, _: *mut vr::HmdQuad_t, count: *mut u32) -> bool {
++        write_zero_count(count)
++    }
++
++    fn GetLiveCollisionBoundsInfo(&self, _: *mut vr::HmdQuad_t, count: *mut u32) -> bool {
++        write_zero_count(count)
++    }
++
++    fn GetWorkingSeatedZeroPoseToRawTrackingPose(&self, pose: *mut vr::HmdMatrix34_t) -> bool {
++        write_identity_pose(pose)
++    }
++
++    fn GetWorkingStandingZeroPoseToRawTrackingPose(&self, pose: *mut vr::HmdMatrix34_t) -> bool {
++        write_identity_pose(pose)
++    }
++
++    fn SetWorkingPlayAreaSize(&self, _: f32, _: f32) {}
++    fn SetWorkingCollisionBoundsInfo(&self, _: *mut vr::HmdQuad_t, _: u32) {}
++    fn SetWorkingPerimeter(&self, _: *mut vr::HmdVector2_t, _: u32) {}
++    fn SetWorkingSeatedZeroPoseToRawTrackingPose(&self, _: *const vr::HmdMatrix34_t) {}
++    fn SetWorkingStandingZeroPoseToRawTrackingPose(&self, _: *const vr::HmdMatrix34_t) {}
++    fn ReloadFromDisk(&self, _: vr::EChaperoneConfigFile) {}
++
++    fn GetLiveSeatedZeroPoseToRawTrackingPose(&self, pose: *mut vr::HmdMatrix34_t) -> bool {
++        write_identity_pose(pose)
++    }
++
++    fn ExportLiveToBuffer(&self, buffer: *mut std::ffi::c_char, length: *mut u32) -> bool {
++        const EMPTY_CHAPERONE: &[u8] = b"{}\0";
++        let Some(length) = (unsafe { length.as_mut() }) else {
++            return false;
++        };
++        if buffer.is_null() {
++            *length = EMPTY_CHAPERONE.len() as u32;
++            return true;
++        }
++        if (*length as usize) < EMPTY_CHAPERONE.len() {
++            *length = EMPTY_CHAPERONE.len() as u32;
++            return false;
++        }
++        unsafe {
++            std::ptr::copy_nonoverlapping(
++                EMPTY_CHAPERONE.as_ptr(),
++                buffer.cast(),
++                EMPTY_CHAPERONE.len(),
++            );
++        }
++        *length = EMPTY_CHAPERONE.len() as u32;
++        true
++    }
++
++    fn ImportFromBufferToWorking(&self, _: *const std::ffi::c_char, _: u32) -> bool {
++        true
++    }
++
++    fn ShowWorkingSetPreview(&self) {}
++    fn HideWorkingSetPreview(&self) {}
++    fn RoomSetupStarting(&self) {}
++}
++
++fn write_zero_count(count: *mut u32) -> bool {
++    let Some(count) = (unsafe { count.as_mut() }) else {
++        return false;
++    };
++    *count = 0;
++    true
++}
++
++fn write_identity_pose(pose: *mut vr::HmdMatrix34_t) -> bool {
++    let Some(pose) = (unsafe { pose.as_mut() }) else {
++        return false;
++    };
++    *pose = Default::default();
++    pose.m[0][0] = 1.0;
++    pose.m[1][1] = 1.0;
++    pose.m[2][2] = 1.0;
++    true
++}
