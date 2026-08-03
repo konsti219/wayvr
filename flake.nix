@@ -9,17 +9,16 @@
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs =
-    { self
-    , nixpkgs
-    , flake-utils
-    , crane
-    , rust-overlay
-    , ...
-    }:
-    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (system:
-    let
-      overlays = [ (import rust-overlay) ];
+  outputs = {
+    self,
+    nixpkgs,
+    flake-utils,
+    crane,
+    rust-overlay,
+    ...
+  }:
+    flake-utils.lib.eachSystem ["x86_64-linux" "aarch64-linux"] (system: let
+      overlays = [(import rust-overlay)];
       pkgs = import nixpkgs {
         inherit system overlays;
       };
@@ -90,7 +89,7 @@
             pkgs.vulkan-loader
           ]
           # ++ lib.optionals withOpenVR [pkgs.openvr]
-        ;
+          ;
 
         env.SHADERC_LIB_DIR = "${lib.getLib pkgs.shaderc}/lib";
         env.CMAKE_ARGS = "-DCMAKE_POLICY_VERSION_MINIMUM=3.5";
@@ -195,7 +194,7 @@
           # library_path points at wayvrOpenXrLayer's store path, so a copy here
           # would be a second manifest pointing at the same .so and re-introduce
           # the duplicate-layer load.
-          propagatedUserEnvPkgs = [ wayvrOpenXrLayer ];
+          propagatedUserEnvPkgs = [wayvrOpenXrLayer];
 
           meta = {
             description = "Your way to enjoy VR on Linux! Access your Wayland/X11 desktop from SteamVR/Monado (OpenVR+OpenXR support)";
@@ -243,34 +242,34 @@
       # The browser add-on packed as an unsigned .xpi (named after its gecko id).
       wayvrYtmusicExtension =
         pkgs.runCommand "wayvr-ytmusic-extension"
-          { nativeBuildInputs = [ pkgs.zip ]; }
-          ''
-            mkdir -p $out
-            cd ${./extras/firefox-ytmusic/extension}
-            zip -r -X "$out/wayvr-ytmusic@konsti.xpi" .
-          '';
+        {nativeBuildInputs = [pkgs.zip];}
+        ''
+          mkdir -p $out
+          cd ${./extras/firefox-ytmusic/extension}
+          zip -r -X "$out/wayvr-ytmusic@konsti.xpi" .
+        '';
 
       xrizer = pkgs.xrizer.overrideAttrs (oldAttrs: {
         patches =
-          (oldAttrs.patches or [ ])
+          (oldAttrs.patches or [])
           ++ [
             ./nix/xrizer-loneecho.patch
           ];
       });
 
       wivrn = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {
-        version = "26.6";
+        version = "26.9";
 
-        # WiVRn 26.6's cmake/CompileGLSL.cmake embeds shaders via `hexdump`.
+        # WiVRn's cmake/CompileGLSL.cmake embeds shaders via `hexdump`.
         nativeBuildInputs =
-          (oldAttrs.nativeBuildInputs or [ ])
+          (oldAttrs.nativeBuildInputs or [])
           ++ [
             pkgs.unixtools.hexdump
           ];
 
-        # WiVRn 26.6's dashboard now requires the kirigami-addons formcard QML module.
+        # WiVRn's dashboard requires the kirigami-addons formcard QML module.
         buildInputs =
-          (oldAttrs.buildInputs or [ ])
+          (oldAttrs.buildInputs or [])
           ++ [
             pkgs.kdePackages.kirigami-addons
           ];
@@ -279,15 +278,15 @@
           owner = "wivrn";
           repo = "wivrn";
           rev = "v${finalAttrs.version}";
-          hash = "sha256-0RvQnaxASPcv3JkEp1OON/n4C9qEAAJ8R7m2FKPlVK0=";
+          hash = "sha256-/kXgbku/4EeYY5YTwtY71csgxOP8bRACLqOvKXolg5g=";
         };
 
-        # WiVRn 26.6's GitVersion.cmake requires GIT_COMMIT at build time, which
-        # can't be inferred from the (gitless) nix source. v26.6 tag commit:
+        # WiVRn's GitVersion.cmake requires GIT_COMMIT at build time, which
+        # can't be inferred from the (gitless) nix source. v26.9 tag commit:
         cmakeFlags =
-          (oldAttrs.cmakeFlags or [ ])
+          (oldAttrs.cmakeFlags or [])
           ++ [
-            "-DGIT_COMMIT=f8841585ebcc413cd2879da4d8acb2bddea1dddc"
+            "-DGIT_COMMIT=bbc6e4cc36c355fa6180980abd231673dc15115d"
           ];
 
         # NOTE: wivrn-comp-target-gpu-metrics.patch was dropped for WiVRn 26.6:
@@ -295,7 +294,7 @@
         # the SystemGpuInfo record it produced is unused by wayvr (only SessionFrame,
         # emitted by the app_pacer override below, is consumed).
         patches =
-          (oldAttrs.patches or [ ])
+          (oldAttrs.patches or [])
           ++ [
             ./nix/wivrn-metrics-init.patch
             ./nix/wivrn-disable-layer-commit-debug.patch
@@ -307,7 +306,7 @@
             cp ${./nix/wivrn-app-pacer-metrics/app_pacer.cpp} server/driver/app_pacer.cpp
           '';
 
-        # Monado source revision pinned by WiVRn v26.6 (see its monado-rev file),
+        # Monado source revision pinned by WiVRn v26.9 (see its monado-rev file),
         # with WiVRn's own monado patches plus our metrics MR applied.
         monado = pkgs.applyPatches {
           name = "monado-with-metrics";
@@ -316,15 +315,15 @@
               domain = "gitlab.freedesktop.org";
               owner = "monado";
               repo = "monado";
-              rev = "1b526bb3a0ff326ecd05af4c2c541407f53c6d4b";
-              hash = "sha256-SzuCQ1uX15vFGwGt3gswlVF2Su8sIND4R3tsTJ4T1LY=";
+              rev = "f037264d23e2472a444a157370647fcd601ed81b";
+              hash = "sha256-exHbecudAy57szL7kut7/fBYCoekEs3riZzhMtFWS/c=";
             };
             postPatch = ''
               ${finalAttrs.src}/patches/apply.sh ${finalAttrs.src}/patches/monado/*
             '';
           };
           # Monado metrics MR 2484, vendored with two hunks rebased onto the
-          # monado revision shipped by WiVRn 26.6 (XRT_ERROR_OUT_OF_MEMORY moved
+          # monado revision shipped by WiVRn 26.9 (XRT_ERROR_OUT_OF_MEMORY moved
           # to -45, libmonado.def export reordered past WiVRn's chroma-key line).
           patches = [
             ./nix/wivrn-monado-mr2484.patch
@@ -337,8 +336,7 @@
           patchFlags = ["-p1" "-F0"];
         };
       });
-    in
-    {
+    in {
       packages = {
         default = wayvrPkg;
         openxr-layer = wayvrOpenXrLayer;
@@ -360,7 +358,7 @@
       };
 
       devShells.default = pkgs.mkShell {
-        inputsFrom = [ wayvrPkg ];
+        inputsFrom = [wayvrPkg];
         packages =
           [
             rustToolchain
