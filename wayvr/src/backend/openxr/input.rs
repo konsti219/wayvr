@@ -133,6 +133,7 @@ struct MultiClickHandler {
     previous: [Option<Instant>; 2],
     held_active: bool,
     held_inactive: bool,
+    pending_release: Option<Instant>,
 }
 
 impl MultiClickHandler {
@@ -142,18 +143,30 @@ impl MultiClickHandler {
             previous: [None, None],
             held_active: false,
             held_inactive: false,
+            pending_release: None,
         }
+    }
+
+    /// Multi-clicks fire on release of the final click rather than on its press,
+    /// and only if that click was a short tap. Single clicks keep hold semantics.
+    const fn fire_on_release(&self) -> bool {
+        self.count.previous_clicks() > 0
     }
 
     fn check(&mut self, state: bool) -> bool {
         if !state {
             self.held_active = false;
             self.held_inactive = false;
+
+            if let Some(pressed_at) = self.pending_release.take() {
+                return pressed_at.elapsed() < self.count.timeout();
+            }
+
             return false;
         }
 
         if self.held_active {
-            return true;
+            return !self.fire_on_release();
         }
 
         if self.held_inactive {
@@ -174,13 +187,14 @@ impl MultiClickHandler {
         if passed {
             self.held_active = true;
             self.previous = [None, None];
+            self.pending_release = Some(now);
         } else {
             self.previous.rotate_right(1);
             self.previous[0] = Some(now);
             self.held_inactive = true;
         }
 
-        passed
+        passed && !self.fire_on_release()
     }
 }
 
