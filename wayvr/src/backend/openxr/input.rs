@@ -46,9 +46,14 @@ pub struct MultiClickHandler<const COUNT: usize> {
     previous: [Instant; COUNT],
     held_active: bool,
     held_inactive: bool,
+    pending_release: Option<Instant>,
 }
 
 impl<const COUNT: usize> MultiClickHandler<COUNT> {
+    /// Multi-clicks fire on release of the final click rather than on its press,
+    /// and only if that click was a short tap. Single clicks keep hold semantics.
+    const FIRE_ON_RELEASE: bool = COUNT > 0;
+
     fn new(action_set: &xr::ActionSet, action_name: &str, side: &str) -> anyhow::Result<Self> {
         let name = format!("{side}_{COUNT}-{action_name}");
         let name_f32 = format!("{}_value", &name);
@@ -63,6 +68,7 @@ impl<const COUNT: usize> MultiClickHandler<COUNT> {
             previous: from_fn(|_| Instant::now()),
             held_active: false,
             held_inactive: false,
+            pending_release: None,
         })
     }
     fn check<G>(&mut self, session: &xr::Session<G>, threshold: f32) -> anyhow::Result<bool> {
@@ -77,11 +83,20 @@ impl<const COUNT: usize> MultiClickHandler<COUNT> {
         if !state {
             self.held_active = false;
             self.held_inactive = false;
+
+            if let Some(pressed_at) = self.pending_release.take() {
+                if pressed_at.elapsed() < CLICK_TIMES[COUNT] {
+                    log::trace!("{}: released in time", self.name);
+                    return Ok(true);
+                }
+                log::trace!("{}: held for too long", self.name);
+            }
+
             return Ok(false);
         }
 
         if self.held_active {
-            return Ok(true);
+            return Ok(!Self::FIRE_ON_RELEASE);
         }
 
         if self.held_inactive {
@@ -97,6 +112,9 @@ impl<const COUNT: usize> MultiClickHandler<COUNT> {
             log::trace!("{}: passed", self.name);
             self.held_active = true;
             self.held_inactive = false;
+            if Self::FIRE_ON_RELEASE {
+                self.pending_release = Some(Instant::now());
+            }
 
             // reset to no prior clicks
             let long_ago = Instant::now().checked_sub(Duration::from_secs(10)).unwrap();
@@ -110,7 +128,7 @@ impl<const COUNT: usize> MultiClickHandler<COUNT> {
             self.held_inactive = true;
         }
 
-        Ok(passed)
+        Ok(passed && !Self::FIRE_ON_RELEASE)
     }
 }
 
