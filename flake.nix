@@ -249,12 +249,43 @@
           zip -r -X "$out/wayvr-ytmusic@konsti.xpi" .
         '';
 
-      xrizer = pkgs.xrizer.overrideAttrs (oldAttrs: {
+      xrizer = pkgs.xrizer.overrideAttrs (finalAttrs: oldAttrs: {
+        version = "0.5-unstable-2026-09-03";
+
+        src = pkgs.fetchFromGitHub {
+          owner = "Supreeeme";
+          repo = "xrizer";
+          rev = "0989a7fac2d1efb7ea82f5fe1a8ed30c3eeb9596";
+          hash = "sha256-Rb1pssAq6Zx6VmQVQtGcThkA6zCwi5X7G7aHmdsDrJo=";
+        };
+        cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+          inherit (finalAttrs) src;
+          hash = "sha256-JKQUrHGqnU5453iVKXnO51nX2NqcBYzsfvuu92WhLDE=";
+        };
+
         patches =
           (oldAttrs.patches or [])
           ++ [
             ./nix/xrizer-loneecho.patch
+            # Native Steam Frame controller profile, plus custom bindings for undeclared controllers
+            ./nix/xrizer-frame-profile.patch
+            # Supreeeme/xrizer#338: Partial (not Full) skeletal level for controller-sourced hand joints
+            ./nix/xrizer-hand-tracking-data-source.patch
+            # SteamVR's fixed wrist for controller skeletons (the Frame's wrist joint is pitched ~27°)
+            ./nix/xrizer-controller-wrist.patch
+            # Finger curl from summed joint bends (pinky under-curled before)
+            ./nix/xrizer-finger-curl.patch
+            # VRChat ignores right-hand mic when also bound left; merge both into the left query
+            ./nix/xrizer-vrchat-mic.patch
           ];
+
+        # main links OpenXR dynamically by default, so only the libGLX fixup is left
+        postPatch = ''
+          substituteInPlace src/graphics_backends/gl.rs \
+            --replace-fail 'libGLX.so.0' '${lib.getLib pkgs.libglvnd}/lib/libGLX.so.0'
+        '';
+        # main derives its version from git, which the source tarball lacks
+        env = (oldAttrs.env or {}) // {XRIZER_VERSION = "${finalAttrs.version}-wayvr";};
       });
 
       wivrn = pkgs.wivrn.overrideAttrs (finalAttrs: oldAttrs: {

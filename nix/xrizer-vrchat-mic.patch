@@ -1,0 +1,52 @@
+From 1d77565c278e25af567565aa321200d71bc505d0 Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 16:26:06 +0200
+Subject: [PATCH] input: merge both hands into VRChat's left-hand mic query
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/input.rs | 28 ++++++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/src/input.rs b/src/input.rs
+index 33daa94..4345e92 100644
+--- a/src/input.rs
++++ b/src/input.rs
+@@ -944,6 +944,34 @@ impl<C: openxr_data::Compositor> vr::IVRInput011_Interface for Input<C> {
+ 
+         let mut out = WriteOnDrop::new(action_data);
+ 
++        // VRChat ignores right-hand mic presses when mic is bound on both hands
++        // (feedback.vrchat.com "binding-mic-toggle-to-both-controllers-doesnt-work"),
++        // so the left-hand query reports either hand and the right one never fires.
++        let mut restrict_to_device = restrict_to_device;
++        if restrict_to_device != vr::k_ulInvalidInputValueHandle
++            && self
++                .action_map
++                .read()
++                .unwrap()
++                .get(ActionKey::from(KeyData::from_ffi(handle)))
++                .is_some_and(|a| a.path.ends_with("/in/mic"))
++        {
++            match InputSourceKey::from(KeyData::from_ffi(restrict_to_device)) {
++                x if x == self.left_hand_key => {
++                    restrict_to_device = vr::k_ulInvalidInputValueHandle
++                }
++                x if x == self.right_hand_key => {
++                    *out.value = vr::InputDigitalActionData_t {
++                        bActive: true,
++                        activeOrigin: restrict_to_device,
++                        ..Default::default()
++                    };
++                    return vr::EVRInputError::None;
++                }
++                _ => {}
++            }
++        }
++
+         get_action_from_handle!(self, handle, session_data, action);
+         let subaction_path = get_subaction_path!(self, restrict_to_device, action_data);
+         let ActionData::Bool(action) = &action else {
+-- 
+2.54.0
+

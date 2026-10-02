@@ -1,0 +1,669 @@
+From cd235fe6e386ca23164e5aed7925d56765c9ddb0 Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Thu, 1 Oct 2026 16:40:59 +0200
+Subject: [PATCH] Add Steam Frame controller interaction profile
+
+Adds the frame_controller controller type backed by XR_VALVE_frame_controller_interaction. Games without Frame bindings keep using Touch, which the runtime remaps. Custom bindings files are now also loaded for controller types the game's manifest doesn't declare, so a framecontroller.json can add Frame bindings to any game.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ fakexr/src/lib.rs                    |  15 +-
+ src/input.rs                         |   1 +
+ src/input/action_manifest.rs         |  37 ++++-
+ src/input/action_manifest/actions.rs |   1 +
+ src/input/profiles.rs                |  24 ++-
+ src/input/profiles/frame.rs          | 230 +++++++++++++++++++++++++++
+ src/openxr_data.rs                   |   9 ++
+ tests/input_data/actions.json        |   4 +
+ tests/input_data/frame.json          | 169 ++++++++++++++++++++
+ 9 files changed, 479 insertions(+), 11 deletions(-)
+ create mode 100644 src/input/profiles/frame.rs
+ create mode 100644 tests/input_data/frame.json
+
+diff --git a/fakexr/src/lib.rs b/fakexr/src/lib.rs
+index 3021e72..5376a45 100644
+--- a/fakexr/src/lib.rs
++++ b/fakexr/src/lib.rs
+@@ -357,8 +357,8 @@ extern "system" fn enumerate_instance_extension_properties(
+     properties: *mut xr::ExtensionProperties,
+ ) -> xr::Result {
+     assert!(layer_name.is_null());
+-    unsafe { *property_count_output = 4 };
+-    if property_capacity_input >= 4 {
++    unsafe { *property_count_output = 5 };
++    if property_capacity_input >= 5 {
+         let props =
+             unsafe { std::slice::from_raw_parts_mut(properties, property_capacity_input as usize) };
+ 
+@@ -405,6 +405,17 @@ extern "system" fn enumerate_instance_extension_properties(
+         let name =
+             unsafe { std::slice::from_raw_parts(name.as_ptr() as *const c_char, name.len()) };
+         props[3].extension_name[..name.len()].copy_from_slice(name);
++
++        props[4] = xr::ExtensionProperties {
++            ty: xr::ExtensionProperties::TYPE,
++            next: std::ptr::null_mut(),
++            extension_name: [0 as c_char; xr::MAX_EXTENSION_NAME_SIZE],
++            extension_version: 1,
++        };
++        let name = b"XR_VALVE_frame_controller_interaction";
++        let name =
++            unsafe { std::slice::from_raw_parts(name.as_ptr() as *const c_char, name.len()) };
++        props[4].extension_name[..name.len()].copy_from_slice(name);
+     }
+     xr::Result::SUCCESS
+ }
+diff --git a/src/input.rs b/src/input.rs
+index 77ab6ed..f24a973 100644
+--- a/src/input.rs
++++ b/src/input.rs
+@@ -10,6 +10,7 @@ mod tests;
+ 
+ pub use devices::TrackedDeviceType;
+ pub use profiles::InteractionProfile;
++pub(crate) use profiles::frame::FRAME_CONTROLLER_EXTENSION_NAME;
+ 
+ use devices::{SubactionPaths, TrackedDevice, TrackedDeviceList};
+ use skeletal::FingerState;
+diff --git a/src/input/action_manifest.rs b/src/input/action_manifest.rs
+index 8c23ceb..66f7a28 100644
+--- a/src/input/action_manifest.rs
++++ b/src/input/action_manifest.rs
+@@ -248,6 +248,15 @@ impl<C: openxr_data::Compositor> Input<C> {
+     }
+ }
+ 
++fn custom_bindings_path(controller_type: &actions::ControllerType) -> PathBuf {
++    if let Ok(custom_dir) = std::env::var("XRIZER_CUSTOM_BINDINGS_DIR") {
++        PathBuf::from(custom_dir)
++    } else {
++        current_dir().unwrap().join("xrizer")
++    }
++    .join(format!("{controller_type:?}.json").to_lowercase())
++}
++
+ impl<C: openxr_data::Compositor> Input<C> {
+     fn load_bindings(
+         &self,
+@@ -255,18 +264,34 @@ impl<C: openxr_data::Compositor> Input<C> {
+         bindings: Vec<actions::DefaultBindings>,
+         context: &mut context::BindingsLoadContext,
+     ) {
++        let mut bindings = bindings;
++        // Custom bindings can also add controllers the game ships no bindings for
++        for controller_type in [
++            actions::ControllerType::ViveController,
++            actions::ControllerType::ViveFocus3,
++            actions::ControllerType::Knuckles,
++            actions::ControllerType::OculusTouch,
++            actions::ControllerType::FrameController,
++        ] {
++            if !bindings
++                .iter()
++                .any(|b| b.controller_type == controller_type)
++                && custom_bindings_path(&controller_type).exists()
++            {
++                bindings.push(actions::DefaultBindings {
++                    binding_url: PathBuf::new(),
++                    controller_type,
++                });
++            }
++        }
++
+         let mut it = bindings.into_iter().peekable();
+         while let Some(actions::DefaultBindings {
+             binding_url,
+             controller_type,
+         }) = it.next()
+         {
+-            let custom_path = if let Ok(custom_dir) = std::env::var("XRIZER_CUSTOM_BINDINGS_DIR") {
+-                PathBuf::from(custom_dir)
+-            } else {
+-                current_dir().unwrap().join("xrizer")
+-            }
+-            .join(format!("{controller_type:?}.json").to_lowercase());
++            let custom_path = custom_bindings_path(&controller_type);
+             let bindings_path = match custom_path.exists() {
+                 true => custom_path,
+                 false => parent_path.join(binding_url),
+diff --git a/src/input/action_manifest/actions.rs b/src/input/action_manifest/actions.rs
+index ef394ee..c149d52 100644
+--- a/src/input/action_manifest/actions.rs
++++ b/src/input/action_manifest/actions.rs
+@@ -41,6 +41,7 @@ pub enum ControllerType {
+     ViveFocus3,
+     Knuckles,
+     OculusTouch,
++    FrameController,
+     #[serde(untagged)]
+     Unknown(String),
+ }
+diff --git a/src/input/profiles.rs b/src/input/profiles.rs
+index d929080..4e584b1 100644
+--- a/src/input/profiles.rs
++++ b/src/input/profiles.rs
+@@ -1,3 +1,4 @@
++pub mod frame;
+ pub mod knuckles;
+ pub mod meta_touch_plus;
+ pub mod oculus_touch;
+@@ -11,6 +12,7 @@ use super::{
+ };
+ use crate::input::profiles::typemagic::ContainsPath;
+ use crate::openxr_data::Hand;
++use frame::Frame;
+ use glam::Mat4;
+ use knuckles::Knuckles;
+ use meta_touch_plus::MetaTouchPlus;
+@@ -59,6 +61,7 @@ impl ControllerType {
+             }
+             Self::Knuckles => runner.run::<Knuckles>(),
+             Self::ViveFocus3 => runner.run::<ViveFocus3>(),
++            Self::FrameController => runner.run::<Frame>(),
+             Self::Unknown(_) => {}
+         }
+     }
+@@ -95,6 +98,7 @@ pub fn run_for_all_profiles(runner: &mut impl RunWithProfile) {
+     profile!(MetaTouchPlus);
+     profile!(OculusTouch);
+     profile!(ViveFocus3);
++    profile!(Frame);
+     profile!(SimpleController);
+ }
+ 
+@@ -526,7 +530,7 @@ pub mod paths {
+                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                     paste::paste! {
+                         let s = match self {
+-                            $(Self::$name => stringify!([<$name:lower>]),)+
++                            $(Self::$name => stringify!([<$name:snake>]),)+
+                         };
+                     }
+                     f.write_str(s)
+@@ -541,8 +545,15 @@ pub mod paths {
+         B::<Click, Touch>,
+         X::<Click, Touch>,
+         Y::<Click, Touch>,
+-        Menu::<Click>,
++        Menu::<Click, Touch>,
+         Select::<Click>,
++        System::<Click, Touch>,
++        View::<Click, Touch>,
++        Bumper::<Click, Touch>,
++        DpadUp::<Click, Touch>,
++        DpadDown::<Click, Touch>,
++        DpadLeft::<Click, Touch>,
++        DpadRight::<Click, Touch>,
+         Trigger::<Click, Value, Force, Touch>,
+         Squeeze::<Click, Value, Force, Touch>,
+         Thumbstick::<Click, Touch, Vec2X, Vec2Y>,
+@@ -561,12 +572,19 @@ pub mod paths {
+                 "b" => Some(Self::B),
+                 "x" => Some(Self::X),
+                 "y" => Some(Self::Y),
+-                "application_menu" => Some(Self::Menu),
++                "application_menu" | "menu" => Some(Self::Menu),
+                 "trigger" => Some(Self::Trigger),
+                 "grip" => Some(Self::Squeeze),
+                 "thumbstick" | "joystick" => Some(Self::Thumbstick),
+                 "thumbrest" => Some(Self::Thumbrest),
+                 "trackpad" => Some(Self::Trackpad),
++                "system" => Some(Self::System),
++                "view" => Some(Self::View),
++                "bumper" => Some(Self::Bumper),
++                "dpad_up" => Some(Self::DpadUp),
++                "dpad_down" => Some(Self::DpadDown),
++                "dpad_left" => Some(Self::DpadLeft),
++                "dpad_right" => Some(Self::DpadRight),
+                 _ => None,
+             }
+         }
+diff --git a/src/input/profiles/frame.rs b/src/input/profiles/frame.rs
+new file mode 100644
+index 0000000..8b4f14d
+--- /dev/null
++++ b/src/input/profiles/frame.rs
+@@ -0,0 +1,230 @@
++use super::{
++    InteractionProfile, Left, MainAxisType, ProfileProperties, Property, Right,
++    SkeletalInputBindings, legal_paths, paths::*,
++};
++use crate::button_mask_from_ids;
++use crate::input::legacy::{self, LegacyBindings, button_mask_from_id};
++use crate::input::profiles::InputToXrPath;
++use crate::openxr_data::Hand;
++use glam::{EulerRot, Mat4, Quat, Vec3};
++
++pub const FRAME_CONTROLLER_EXTENSION_NAME: &str = "XR_VALVE_frame_controller_interaction";
++
++/// Steam Frame controller. Games without Frame bindings stay on Touch, which the runtime remaps.
++pub struct Frame;
++
++impl InteractionProfile for Frame {
++    type LegalPaths = legal_paths![
++        Both::<
++            (System, Click),
++            (System, Touch),
++            (Bumper, Click),
++            (Bumper, Touch),
++            (Squeeze, Click),
++            (Squeeze, Value),
++            (Squeeze, Touch),
++            (Trigger, Click),
++            (Trigger, Value),
++            (Trigger, Touch),
++            (Thumbstick, ()),
++            (Thumbstick, Click),
++            (Thumbstick, Touch),
++        >,
++        Left::<
++            (DpadUp, Click),
++            (DpadUp, Touch),
++            (DpadDown, Click),
++            (DpadDown, Touch),
++            (DpadLeft, Click),
++            (DpadLeft, Touch),
++            (DpadRight, Click),
++            (DpadRight, Touch),
++            (View, Click),
++            (View, Touch),
++        >,
++        Right::<
++            (A, Click),
++            (A, Touch),
++            (B, Click),
++            (B, Touch),
++            (X, Click),
++            (X, Touch),
++            (Y, Click),
++            (Y, Touch),
++            (Menu, Click),
++            (Menu, Touch),
++        >
++    ];
++    fn properties() -> &'static ProfileProperties {
++        use openvr::EVRButtonId::*;
++        static DEVICE_PROPERTIES: ProfileProperties = ProfileProperties {
++            model: Property::PerHand {
++                left: c"Frame Controller (Left)",
++                right: c"Frame Controller (Right)",
++            },
++            openvr_controller_type: c"frame_controller",
++            // No Frame model is bundled, Quest 2 is the closest stand-in
++            render_model_name: Property::PerHand {
++                left: c"oculus_quest2_controller_left",
++                right: c"oculus_quest2_controller_right",
++            },
++            registered_device_type: Property::PerHand {
++                left: c"frame_controller/FRAME-CONTROLLER-LEFT",
++                right: c"frame_controller/FRAME-CONTROLLER-RIGHT",
++            },
++            serial_number: Property::PerHand {
++                left: c"FRAME-CONTROLLER-LEFT",
++                right: c"FRAME-CONTROLLER-RIGHT",
++            },
++            tracking_system_name: c"frame_controller",
++            manufacturer_name: c"Valve",
++            main_axis: MainAxisType::Thumbstick,
++            legacy_buttons_mask: button_mask_from_ids!(
++                System,
++                ApplicationMenu,
++                Grip,
++                A,
++                Axis0,
++                Axis1,
++                Axis2
++            ),
++        };
++        &DEVICE_PROPERTIES
++    }
++    fn profile_path() -> &'static str {
++        "/interaction_profiles/valve/frame_controller_valve"
++    }
++    fn has_required_extensions(enabled_extensions: &openxr::ExtensionSet) -> bool {
++        enabled_extensions
++            .other
++            .iter()
++            .any(|ext| ext.strip_suffix(b"\0") == Some(FRAME_CONTROLLER_EXTENSION_NAME.as_bytes()))
++    }
++
++    fn legacy_bindings(c: &InputToXrPath<Self>) -> LegacyBindings {
++        LegacyBindings {
++            extra: legacy::Bindings {
++                grip_pose: c.pose(),
++            },
++            trigger: c.leftright::<Trigger, Value, _, _>(),
++            trigger_click: c.leftright::<Trigger, Value, _, _>(),
++            app_menu: [
++                c.into::<Left<DpadLeft, Click>, _>(),
++                c.into::<Right<B, Click>, _>(),
++            ]
++            .concat(),
++            a: [
++                c.into::<Left<DpadDown, Click>, _>(),
++                c.into::<Right<A, Click>, _>(),
++            ]
++            .concat(),
++            squeeze_click: c.leftright::<Squeeze, Value, _, _>(),
++            squeeze: c.leftright::<Squeeze, Value, _, _>(),
++            main_xy: c.leftright::<Thumbstick, (), _, _>(),
++            main_xy_click: c.leftright::<Thumbstick, Click, _, _>(),
++            main_xy_touch: c.leftright::<Thumbstick, Touch, _, _>(),
++            haptic: c.haptics(),
++        }
++    }
++
++    fn skeletal_input_bindings(c: &InputToXrPath<Self>) -> SkeletalInputBindings {
++        SkeletalInputBindings {
++            thumb_touch: [
++                c.leftright::<Thumbstick, Touch, _, _>(),
++                c.into::<Left<DpadUp, Touch>, _>(),
++                c.into::<Left<DpadDown, Touch>, _>(),
++                c.into::<Left<DpadLeft, Touch>, _>(),
++                c.into::<Left<DpadRight, Touch>, _>(),
++                c.into::<Right<A, Touch>, _>(),
++                c.into::<Right<B, Touch>, _>(),
++                c.into::<Right<X, Touch>, _>(),
++                c.into::<Right<Y, Touch>, _>(),
++            ]
++            .concat(),
++            index_touch: c.leftright::<Trigger, Touch, _, _>(),
++            index_curl: c.leftright::<Trigger, Value, _, _>(),
++            rest_curl: c.leftright::<Squeeze, Value, _, _>(),
++        }
++    }
++
++    // openxr_grip from SteamVR's frame_controller render models
++    fn offset_grip_pose(hand: Hand) -> Mat4 {
++        let x = match hand {
++            Hand::Left => -0.003117,
++            Hand::Right => 0.003117,
++        };
++        Mat4::from_rotation_translation(
++            Quat::from_euler(EulerRot::XYZ, 2.8091_f32.to_radians(), 0.0, 0.0),
++            Vec3::new(x, -0.004277, 0.099501),
++        )
++        .inverse()
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::{Frame, InteractionProfile};
++    use crate::input::tests::Fixture;
++    use openxr as xr;
++
++    #[test]
++    fn verify_bindings() {
++        let f = Fixture::new();
++        f.load_actions(c"actions.json");
++
++        let path = Frame::profile_path();
++        f.verify_bindings::<bool>(
++            path,
++            c"/actions/set1/in/boolact",
++            [
++                "/user/hand/left/input/dpad_down/click".into(),
++                "/user/hand/left/input/dpad_left/click".into(),
++                "/user/hand/left/input/view/click".into(),
++                "/user/hand/left/input/system/click".into(),
++                "/user/hand/left/input/bumper/click".into(),
++                "/user/hand/right/input/a/click".into(),
++                "/user/hand/right/input/x/click".into(),
++                "/user/hand/right/input/menu/click".into(),
++                "/user/hand/left/input/trigger/click".into(),
++                "/user/hand/right/input/thumbstick/click".into(),
++                "/user/hand/right/input/thumbstick/touch".into(),
++            ],
++        );
++
++        f.verify_bindings::<f32>(
++            path,
++            c"/actions/set1/boolact_asfloat",
++            [
++                "/user/hand/left/input/squeeze/value".into(),
++                "/user/hand/right/input/squeeze/value".into(),
++            ],
++        );
++
++        f.verify_bindings::<f32>(
++            path,
++            c"/actions/set1/in/vec1act",
++            [
++                "/user/hand/left/input/trigger/value".into(),
++                "/user/hand/right/input/trigger/value".into(),
++            ],
++        );
++
++        f.verify_bindings::<xr::Vector2f>(
++            path,
++            c"/actions/set1/in/vec2act",
++            [
++                "/user/hand/left/input/thumbstick".into(),
++                "/user/hand/right/input/thumbstick".into(),
++            ],
++        );
++
++        f.verify_bindings::<xr::Haptic>(
++            path,
++            c"/actions/set1/in/vib",
++            [
++                "/user/hand/left/output/haptic".into(),
++                "/user/hand/right/output/haptic".into(),
++            ],
++        );
++    }
++}
+diff --git a/src/openxr_data.rs b/src/openxr_data.rs
+index e3e9eff..f43a5e5 100644
+--- a/src/openxr_data.rs
++++ b/src/openxr_data.rs
+@@ -137,6 +137,15 @@ impl<C: Compositor> OpenXrData<C> {
+         exts.meta_touch_controller_plus = supported_exts.meta_touch_controller_plus;
+         exts.fb_display_refresh_rate = supported_exts.fb_display_refresh_rate;
+ 
++        let frame_controller = [
++            crate::input::FRAME_CONTROLLER_EXTENSION_NAME.as_bytes(),
++            b"\0",
++        ]
++        .concat();
++        if supported_exts.other.contains(&frame_controller) {
++            exts.other.push(frame_controller);
++        }
++
+         // Extension that enables simple full body tracking support via generic tracked devices.
+         // Available only in the Monado OpenXR runtime.
+         #[cfg(feature = "monado")]
+diff --git a/tests/input_data/actions.json b/tests/input_data/actions.json
+index 3d553e4..abcd217 100644
+--- a/tests/input_data/actions.json
++++ b/tests/input_data/actions.json
+@@ -93,6 +93,10 @@
+ 		{
+ 			"binding_url": "focus3.json",
+ 			"controller_type": "vive_focus3_controller"
++		},
++		{
++			"binding_url": "frame.json",
++			"controller_type": "frame_controller"
+ 		}
+ 	],
+ 	"localization": []
+diff --git a/tests/input_data/frame.json b/tests/input_data/frame.json
+new file mode 100644
+index 0000000..5bd9321
+--- /dev/null
++++ b/tests/input_data/frame.json
+@@ -0,0 +1,169 @@
++{
++	"bindings": {
++		"/actions/set1": {
++			"poses": [
++				{
++					"output": "/actions/set1/in/pose",
++					"path": "/user/hand/left/pose/raw"
++				},
++				{
++					"output": "/actions/set1/in/pose",
++					"path": "/user/hand/right/pose/raw"
++				}
++			],
++			"haptics": [
++				{
++					"output": "/actions/set1/in/vib",
++					"path": "/user/hand/left/output/haptic"
++				},
++				{
++					"output": "/actions/set1/in/vib",
++					"path": "/user/hand/right/output/haptic"
++				}
++			],
++			"sources": [
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/left/input/dpad_down"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/left/input/dpad_left"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/left/input/view"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/left/input/system"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/left/input/bumper"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/right/input/a"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/right/input/x"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/right/input/menu"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "trigger",
++					"path": "/user/hand/left/input/trigger"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/left/input/grip"
++				},
++				{
++					"inputs": {
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "button",
++					"path": "/user/hand/right/input/grip"
++				},
++				{
++					"inputs": {
++						"position": {
++							"output": "/actions/set1/in/vec2act"
++						},
++						"click": {
++							"output": "/actions/set1/in/boolact"
++						},
++						"touch": {
++							"output": "/actions/set1/in/boolact"
++						}
++					},
++					"mode": "joystick",
++					"path": "/user/hand/right/input/thumbstick"
++				},
++				{
++					"inputs": {
++						"position": {
++							"output": "/actions/set1/in/vec2act"
++						}
++					},
++					"mode": "joystick",
++					"path": "/user/hand/left/input/thumbstick"
++				},
++				{
++					"inputs": {
++						"pull": {
++							"output": "/actions/set1/in/vec1act"
++						}
++					},
++					"mode": "trigger",
++					"path": "/user/hand/left/input/trigger"
++				},
++				{
++					"inputs": {
++						"pull": {
++							"output": "/actions/set1/in/vec1act"
++						}
++					},
++					"mode": "trigger",
++					"path": "/user/hand/right/input/trigger"
++				}
++			]
++		}
++	}
++}
+-- 
+2.54.0
+

@@ -1,0 +1,92 @@
+From 9c790a9d4be8645593ba9508dbf7a50e1480c2e8 Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Thu, 1 Oct 2026 21:22:42 +0200
+Subject: [PATCH] input/skeletal: use SteamVR's fixed wrist for
+ controller-sourced hand tracking
+
+SteamVR keeps the wrist bone of controller skeletons at a constant pose relative to the controller. SteamVR's OpenXR runtime on the Steam Frame reports a wrist joint pitched ~27 degrees against the palm, which made hands look rotated upwards. Finger model space poses are unchanged, since fingers are localized against the wrist.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/input/skeletal.rs | 51 ++++++++++++++++++++++++++++---------------
+ 1 file changed, 34 insertions(+), 17 deletions(-)
+
+diff --git a/src/input/skeletal.rs b/src/input/skeletal.rs
+index 5947787..3920a8f 100644
+--- a/src/input/skeletal.rs
++++ b/src/input/skeletal.rs
+@@ -94,14 +94,23 @@ impl<C: openxr_data::Compositor> Input<C> {
+             xr_joint_to_vr_bone(&joints[joint], &mut transforms[aux as usize]);
+         }
+ 
+-        // The wrists appear to have to some sort of strange orientation compared
+-        // to the other joints - this rotation fixes it up
+-        joints[xr::HandJoint::WRIST] *= Affine3A::from_quat(Quat::from_euler(
+-            glam::EulerRot::YZXEx,
+-            -FRAC_PI_2,
+-            FRAC_PI_2,
+-            0.0,
+-        ));
++        // SteamVR keeps the wrist of controller skeletons at a fixed pose relative to the controller,
++        // while runtimes may orient the wrist joint differently (SteamVR on the Frame pitches it ~27°).
++        // Fingers are localized against the wrist below, so their model space poses don't change.
++        if data_source == xr::HandTrackingDataSourceEXT::CONTROLLER {
++            let open_hand = match hand {
++                Hand::Left => &generated::left_hand::OPENHAND,
++                Hand::Right => &generated::right_hand::OPENHAND,
++            };
++            let (_, wrist_rot) = bone_transform_to_glam(open_hand[Wrist as usize]);
++            let fixup = wrist_joint_fixup() * wrist_hand_fixup(hand);
++            joints[xr::HandJoint::WRIST] = Affine3A::from_rotation_translation(
++                wrist_rot * fixup.inverse(),
++                joints[xr::HandJoint::WRIST].translation.into(),
++            );
++        }
++
++        joints[xr::HandJoint::WRIST] *= Affine3A::from_quat(wrist_joint_fixup());
+ 
+         // OpenXR reports all our bones in "model" space (basically), so we need to
+         // convert everything into parent space.
+@@ -131,15 +140,7 @@ impl<C: openxr_data::Compositor> Input<C> {
+         // applied to the wrist in the conversion method.
+         transforms[Root as usize] = Affine3A::IDENTITY.into();
+ 
+-        // Currently as is, the hands will point down
+-        // This rotation corrects them so they are pointing the correct direction
+-        // Note that it is hand specific.
+-        joints[xr::HandJoint::WRIST] *= match hand {
+-            Hand::Left => {
+-                Affine3A::from_quat(Quat::from_euler(glam::EulerRot::YZXEx, FRAC_PI_2, PI, 0.0))
+-            }
+-            Hand::Right => Affine3A::from_rotation_y(-FRAC_PI_2),
+-        };
++        joints[xr::HandJoint::WRIST] *= Affine3A::from_quat(wrist_hand_fixup(hand));
+         transforms[Wrist as usize] = joints[xr::HandJoint::WRIST].into();
+ 
+         for (joint, bone) in JOINTS_TO_BONES[1..]
+@@ -501,6 +502,22 @@ fn parent_to_model_space_bone_data(it: impl PoseIterator) -> impl PoseIterator {
+     )
+ }
+ 
++/// The wrists appear to have to some sort of strange orientation compared
++/// to the other joints - this rotation fixes it up
++fn wrist_joint_fixup() -> Quat {
++    Quat::from_euler(glam::EulerRot::YZXEx, -FRAC_PI_2, FRAC_PI_2, 0.0)
++}
++
++/// Currently as is, the hands will point down
++/// This rotation corrects them so they are pointing the correct direction
++/// Note that it is hand specific.
++fn wrist_hand_fixup(hand: Hand) -> Quat {
++    match hand {
++        Hand::Left => Quat::from_euler(glam::EulerRot::YZXEx, FRAC_PI_2, PI, 0.0),
++        Hand::Right => Quat::from_rotation_y(-FRAC_PI_2),
++    }
++}
++
+ fn bone_transform_to_glam(transform: vr::VRBoneTransform_t) -> (Vec3, Quat) {
+     let rot = transform.orientation;
+     (
+-- 
+2.54.0
+

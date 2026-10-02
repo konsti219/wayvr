@@ -1,0 +1,437 @@
+From 9da79b370b1dfca8798584b7f266e19297b0c5b7 Mon Sep 17 00:00:00 2001
+From: Sapphire <imsapphire0@gmail.com>
+Date: Wed, 7 Jan 2026 00:47:45 -0600
+Subject: [PATCH 1/3] input: store skeletal tracking level per-hand
+
+---
+ src/input.rs          | 6 +++---
+ src/input/skeletal.rs | 6 ++++--
+ 2 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/src/input.rs b/src/input.rs
+index f24a973..6ef00b7 100644
+--- a/src/input.rs
++++ b/src/input.rs
+@@ -58,7 +58,7 @@ pub struct Input<C: openxr_data::Compositor> {
+     set_map: RwLock<SlotMap<ActionSetKey, String>>,
+     loaded_actions_path: OnceLock<PathBuf>,
+     legacy_state: legacy::LegacyState,
+-    skeletal_tracking_level: RwLock<vr::EVRSkeletalTrackingLevel>,
++    skeletal_tracking_level: RwLock<[vr::EVRSkeletalTrackingLevel; 2]>,
+     estimated_finger_state: [Mutex<FingerState>; 2],
+     subaction_paths: SubactionPaths,
+     events: Mutex<VecDeque<InputEvent>>,
+@@ -128,7 +128,7 @@ impl<C: openxr_data::Compositor> Input<C> {
+             left_hand_key,
+             right_hand_key,
+             legacy_state: Default::default(),
+-            skeletal_tracking_level: RwLock::new(vr::EVRSkeletalTrackingLevel::Estimated),
++            skeletal_tracking_level: RwLock::new([vr::EVRSkeletalTrackingLevel::Estimated; 2]),
+             estimated_finger_state: [
+                 Mutex::new(FingerState::new()),
+                 Mutex::new(FingerState::new()),
+@@ -595,7 +595,7 @@ impl<C: openxr_data::Compositor> vr::IVRInput011_Interface for Input<C> {
+             if controller_type.as_deref() == Some(c"knuckles") {
+                 *level = vr::EVRSkeletalTrackingLevel::Partial;
+             } else {
+-                *level = *self.skeletal_tracking_level.read().unwrap();
++                *level = self.skeletal_tracking_level.read().unwrap()[*hand as usize - 1];
+             }
+         }
+         vr::EVRInputError::None
+diff --git a/src/input/skeletal.rs b/src/input/skeletal.rs
+index f041705..74ec269 100644
+--- a/src/input/skeletal.rs
++++ b/src/input/skeletal.rs
+@@ -159,7 +159,8 @@ impl<C: openxr_data::Compositor> Input<C> {
+             }
+         }
+ 
+-        *self.skeletal_tracking_level.write().unwrap() = vr::EVRSkeletalTrackingLevel::Full;
++        self.skeletal_tracking_level.write().unwrap()[hand as usize - 1] =
++            vr::EVRSkeletalTrackingLevel::Full;
+     }
+ 
+     pub(super) fn get_bone_summary_from_hand_tracking(
+@@ -322,7 +323,8 @@ impl<C: openxr_data::Compositor> Input<C> {
+         });
+ 
+         finalize_transforms(bone_it, space, transforms);
+-        *self.skeletal_tracking_level.write().unwrap() = vr::EVRSkeletalTrackingLevel::Estimated;
++        self.skeletal_tracking_level.write().unwrap()[hand as usize - 1] =
++            vr::EVRSkeletalTrackingLevel::Estimated;
+     }
+ 
+     pub(super) fn get_estimated_bone_summary(
+-- 
+2.54.0
+
+
+From c31c2908259e457526d0660c443cf1dfac787768 Mon Sep 17 00:00:00 2001
+From: Sapphire <imsapphire0@gmail.com>
+Date: Mon, 23 Feb 2026 02:50:08 -0600
+Subject: [PATCH 2/3] input: use XR_EXT_hand_tracking_data_source for skeletal
+ tracking level
+
+---
+ src/input.rs          | 91 ++++++++++++++++++++++++++++---------------
+ src/input/devices.rs  | 77 ++++++++++++++++++++++++++++++++----
+ src/input/skeletal.rs | 17 ++++++--
+ src/openxr_data.rs    |  3 +-
+ 4 files changed, 144 insertions(+), 44 deletions(-)
+
+diff --git a/src/input.rs b/src/input.rs
+index 6ef00b7..83270ee 100644
+--- a/src/input.rs
++++ b/src/input.rs
+@@ -579,25 +579,11 @@ impl<C: openxr_data::Compositor> vr::IVRInput011_Interface for Input<C> {
+         let ActionData::Skeleton(hand) = action else {
+             return vr::EVRInputError::WrongType;
+         };
+-
+-        let Some(index) = self.get_controller_device_index(*hand) else {
+-            return vr::EVRInputError::InvalidDevice;
++        let Some(level) = (unsafe { level.as_mut() }) else {
++            return vr::EVRInputError::InvalidParam;
+         };
+ 
+-        let controller_type = self.get_device_string_tracked_property(
+-            index,
+-            vr::ETrackedDeviceProperty::ControllerType_String,
+-        );
+-
+-        unsafe {
+-            // Make sure knuckles are always Partial
+-            // TODO: Remove in favor of using XR_EXT_hand_tracking_data_source
+-            if controller_type.as_deref() == Some(c"knuckles") {
+-                *level = vr::EVRSkeletalTrackingLevel::Partial;
+-            } else {
+-                *level = self.skeletal_tracking_level.read().unwrap()[*hand as usize - 1];
+-            }
+-        }
++        *level = self.skeletal_tracking_level.read().unwrap()[*hand as usize - 1];
+         vr::EVRInputError::None
+     }
+     fn GetSkeletalReferenceTransforms(
+@@ -1347,8 +1333,49 @@ impl<C: openxr_data::Compositor> vr::IVRInput004On005 for Input<C> {
+     }
+ }
+ 
++// OpenXR spec requires we create the hand tracker with requested data sources if
++// we chain XrHandTrackingDataSourceStateEXT in XrHandJointLocationsEXT.
++fn create_hand_tracker_with_data_sources<G>(
++    session: &xr::Session<G>,
++    hand: xr::HandEXT,
++) -> xr::Result<xr::HandTracker> {
++    let Some(ext) = session.instance().exts().ext_hand_tracking.as_ref() else {
++        return Err(xr::sys::Result::ERROR_EXTENSION_NOT_PRESENT);
++    };
++
++    let data_sources = [xr::HandTrackingDataSourceEXT::CONTROLLER, xr::HandTrackingDataSourceEXT::UNOBSTRUCTED];
++    let data_source_info = xr::sys::HandTrackingDataSourceInfoEXT {
++        ty: xr::sys::HandTrackingDataSourceInfoEXT::TYPE,
++        next: std::ptr::null(),
++        requested_data_source_count: data_sources.len() as u32,
++        requested_data_sources: data_sources.as_ptr() as *mut xr::HandTrackingDataSourceEXT,
++    };
++    let info = xr::sys::HandTrackerCreateInfoEXT {
++        ty: xr::sys::HandTrackerCreateInfoEXT::TYPE,
++        next: &data_source_info as *const _ as _,
++        hand,
++        // If this ever changes, update the joint_counts set in `Space::locate_hand_joints`
++        hand_joint_set: xr::sys::HandJointSetEXT::DEFAULT,
++    };
++
++    let handle = {
++        let mut handle = xr::sys::HandTrackerEXT::NULL;
++        let r = unsafe { (ext.create_hand_tracker)(session.as_raw(), &info, &mut handle) };
++        if r.into_raw() < 0 {
++            return Err(r);
++        }
++        handle
++    };
++
++    Ok(unsafe { xr::HandTracker::from_raw(session, handle) })
++}
++
+ impl<C: openxr_data::Compositor> Input<C> {
+-    pub fn interaction_profile_changed(&self, session_data: &SessionData) {
++    pub fn interaction_profile_changed(
++        &self,
++        session_data: &SessionData,
++        enabled_extensions: &xr::ExtensionSet,
++    ) {
+         let mut devices = session_data.input_data.devices.write().unwrap();
+ 
+         let mut devices_to_create = vec![];
+@@ -1409,19 +1436,21 @@ impl<C: openxr_data::Compositor> Input<C> {
+                 if let Some(controller) = controller.as_mut() {
+                     controller.profile_data = Some(data);
+                 } else {
+-                    let hand_tracker = session_data
+-                        .session
+-                        .create_hand_tracker(hand.into())
+-                        .inspect_err(|e| {
+-                            if !matches!(
+-                                *e,
+-                                xr::sys::Result::ERROR_EXTENSION_NOT_PRESENT
+-                                    | xr::sys::Result::ERROR_FEATURE_UNSUPPORTED
+-                            ) {
+-                                log::warn!("Failed to create hand tracker for hand {hand:?}: {e}");
+-                            }
+-                        })
+-                        .ok();
++                    let hand_tracker = if enabled_extensions.ext_hand_tracking_data_source {
++                        create_hand_tracker_with_data_sources(&session_data.session, hand.into())
++                    } else {
++                        session_data.session.create_hand_tracker(hand.into())
++                    }
++                    .inspect_err(|e| {
++                        if !matches!(
++                            *e,
++                            xr::sys::Result::ERROR_EXTENSION_NOT_PRESENT
++                                | xr::sys::Result::ERROR_FEATURE_UNSUPPORTED
++                        ) {
++                            log::warn!("Failed to create hand tracker for hand {hand:?}: {e}");
++                        }
++                    })
++                    .ok();
+                     devices_to_create.push((
+                         TrackedDeviceType::Controller {
+                             hand,
+diff --git a/src/input/devices.rs b/src/input/devices.rs
+index bdd9e70..7801011 100644
+--- a/src/input/devices.rs
++++ b/src/input/devices.rs
+@@ -1,6 +1,7 @@
+ use std::any::TypeId;
+ use std::collections::HashMap;
+ use std::ffi::{CStr, CString};
++use std::mem::MaybeUninit;
+ use std::sync::Mutex;
+ 
+ use glam::Mat4;
+@@ -21,12 +22,18 @@ use log::trace;
+ 
+ use super::{Input, InteractionProfile, profiles::MainAxisType};
+ 
++#[derive(Clone)]
++pub struct HandSkeleton {
++    pub joints: xr::HandJointLocations,
++    pub data_source: xr::HandTrackingDataSourceEXT,
++}
++
+ pub enum TrackedDeviceType {
+     Hmd,
+     Controller {
+         hand: Hand,
+         hand_tracker: Option<xr::HandTracker>,
+-        skeleton_cache: Mutex<HashMap<u64, Option<xr::HandJointLocations>>>,
++        skeleton_cache: Mutex<HashMap<u64, Option<HandSkeleton>>>,
+     },
+     #[cfg(feature = "monado")]
+     GenericTracker {
+@@ -131,6 +138,50 @@ fn get_controller_pose(
+     Some(vr::space_relation_to_openvr_pose(location, velocity))
+ }
+ 
++// We must use the unsafe API if we want the data source, as openxrs
++// does not provide a safe API similar to `xr::space::Space::locate_hand_joints` that returns the data source state.
++fn get_joints_with_data_source(
++    base: &xr::Space,
++    tracker: &xr::HandTracker,
++    time: xr::Time,
++) -> xr::Result<Option<HandSkeleton>> {
++    let Some(ext) = base.instance().exts().ext_hand_tracking.as_ref() else {
++        return Err(xr::sys::Result::ERROR_EXTENSION_NOT_PRESENT);
++    };
++
++    let locate_info = xr::sys::HandJointsLocateInfoEXT {
++        ty: xr::sys::HandJointsLocateInfoEXT::TYPE,
++        next: std::ptr::null(),
++        base_space: base.as_raw(),
++        time,
++    };
++    let mut source_state = xr::sys::HandTrackingDataSourceStateEXT {
++        ty: xr::sys::HandTrackingDataSourceStateEXT::TYPE,
++        next: std::ptr::null_mut(),
++        ..unsafe { std::mem::zeroed() }
++    };
++    let mut locations = MaybeUninit::<[xr::HandJointLocation; xr::HAND_JOINT_COUNT]>::uninit();
++    let mut location_info = xr::sys::HandJointLocationsEXT {
++        ty: xr::sys::HandJointLocationsEXT::TYPE,
++        next: &mut source_state as *mut _ as _,
++        joint_count: xr::HAND_JOINT_COUNT as u32,
++        joint_locations: locations.as_mut_ptr() as _,
++        ..unsafe { std::mem::zeroed() }
++    };
++    let r = unsafe { (ext.locate_hand_joints)(tracker.as_raw(), &locate_info, &mut location_info) };
++    if r.into_raw() < 0 {
++        return Err(r);
++    }
++    Ok(if location_info.is_active.into() {
++        Some(HandSkeleton {
++            joints: unsafe { locations.assume_init() },
++            data_source: source_state.data_source,
++        })
++    } else {
++        None
++    })
++}
++
+ #[cfg(feature = "monado")]
+ fn get_generic_tracker_pose(
+     xr_data: &OpenXrData<impl crate::openxr_data::Compositor>,
+@@ -197,7 +248,7 @@ impl TrackedDevice {
+         &self,
+         xr_data: &OpenXrData<impl crate::openxr_data::Compositor>,
+         base: &xr::Space,
+-    ) -> Option<xr::HandJointLocations> {
++    ) -> Option<HandSkeleton> {
+         let TrackedDeviceType::Controller {
+             hand_tracker,
+             skeleton_cache,
+@@ -208,14 +259,24 @@ impl TrackedDevice {
+         };
+         let mut skeleton_cache = skeleton_cache.lock().unwrap();
+         if let Some(skeleton) = skeleton_cache.get(&base.as_raw().into_raw()) {
+-            return *skeleton;
++            return skeleton.clone();
+         }
+ 
+-        let joints = base
+-            .locate_hand_joints(hand_tracker.as_ref()?, xr_data.display_time.get())
+-            .unwrap_or_default();
+-        skeleton_cache.insert(base.as_raw().into_raw(), joints);
+-        joints
++        let display_time = xr_data.display_time.get();
++        let r = if xr_data.enabled_extensions.ext_hand_tracking_data_source {
++            get_joints_with_data_source(base, hand_tracker.as_ref()?, display_time)
++                .unwrap_or_default()
++        } else {
++            base.locate_hand_joints(hand_tracker.as_ref()?, display_time)
++                .unwrap_or_default()
++                .map(|joints| HandSkeleton {
++                    joints,
++                    data_source: xr::HandTrackingDataSourceEXT::UNOBSTRUCTED,
++                })
++        };
++
++        skeleton_cache.insert(base.as_raw().into_raw(), r.clone());
++        r
+     }
+ 
+     pub fn clear_pose_cache(&self) {
+diff --git a/src/input/skeletal.rs b/src/input/skeletal.rs
+index 74ec269..5947787 100644
+--- a/src/input/skeletal.rs
++++ b/src/input/skeletal.rs
+@@ -2,6 +2,7 @@
+ mod generated;
+ 
+ use super::Input;
++use crate::input::devices::HandSkeleton;
+ use crate::openxr_data::{self, Hand, SessionData};
+ use HandSkeletonBone::*;
+ use glam::{Affine3A, Quat, Vec3};
+@@ -40,7 +41,11 @@ impl<C: openxr_data::Compositor> Input<C> {
+             return;
+         };
+ 
+-        let Some(joints) = controller.get_hand_skeleton(&self.openxr, &raw) else {
++        let Some(HandSkeleton {
++            joints,
++            data_source,
++        }) = controller.get_hand_skeleton(&self.openxr, &raw)
++        else {
+             self.get_estimated_bones(session_data, space, hand, transforms);
+             return;
+         };
+@@ -159,8 +164,11 @@ impl<C: openxr_data::Compositor> Input<C> {
+             }
+         }
+ 
+-        self.skeletal_tracking_level.write().unwrap()[hand as usize - 1] =
+-            vr::EVRSkeletalTrackingLevel::Full;
++        self.skeletal_tracking_level.write().unwrap()[hand as usize - 1] = match data_source {
++            xr::HandTrackingDataSourceEXT::CONTROLLER => vr::EVRSkeletalTrackingLevel::Partial,
++            xr::HandTrackingDataSourceEXT::UNOBSTRUCTED => vr::EVRSkeletalTrackingLevel::Full,
++            _ => unreachable!(),
++        };
+     }
+ 
+     pub(super) fn get_bone_summary_from_hand_tracking(
+@@ -187,7 +195,8 @@ impl<C: openxr_data::Compositor> Input<C> {
+             return;
+         };
+ 
+-        let Some(joints) = controller.get_hand_skeleton(&self.openxr, &raw) else {
++        let Some(HandSkeleton { joints, .. }) = controller.get_hand_skeleton(&self.openxr, &raw)
++        else {
+             self.get_estimated_bone_summary(session_data, summary_type, summary_data, hand);
+             return;
+         };
+diff --git a/src/openxr_data.rs b/src/openxr_data.rs
+index f43a5e5..e5bbeef 100644
+--- a/src/openxr_data.rs
++++ b/src/openxr_data.rs
+@@ -127,6 +127,7 @@ impl<C: Compositor> OpenXrData<C> {
+         exts.khr_opengl_enable = supported_exts.khr_opengl_enable;
+         exts.khr_convert_timespec_time = supported_exts.khr_convert_timespec_time;
+         exts.ext_hand_tracking = supported_exts.ext_hand_tracking;
++        exts.ext_hand_tracking_data_source = supported_exts.ext_hand_tracking_data_source;
+         exts.khr_visibility_mask = supported_exts.khr_visibility_mask;
+         exts.khr_composition_layer_cylinder = supported_exts.khr_composition_layer_cylinder;
+         exts.khr_composition_layer_equirect2 = supported_exts.khr_composition_layer_equirect2;
+@@ -223,7 +224,7 @@ impl<C: Compositor> OpenXrData<C> {
+                 }
+                 xr::Event::InteractionProfileChanged(_) => {
+                     if let Some(input) = self.input.get() {
+-                        input.interaction_profile_changed(session_data);
++                        input.interaction_profile_changed(session_data, &self.enabled_extensions);
+                     }
+                 }
+                 _ => {
+-- 
+2.54.0
+
+
+From 4a30fbf16fd4ba3291b8ced8bfbad7c7cc4edcde Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Thu, 1 Oct 2026 20:43:43 +0200
+Subject: [PATCH 3/3] Fix PR 338 build on current main (Handle trait not in
+ scope)
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/input.rs | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/input.rs b/src/input.rs
+index 83270ee..33daa94 100644
+--- a/src/input.rs
++++ b/src/input.rs
+@@ -1343,7 +1343,10 @@ fn create_hand_tracker_with_data_sources<G>(
+         return Err(xr::sys::Result::ERROR_EXTENSION_NOT_PRESENT);
+     };
+ 
+-    let data_sources = [xr::HandTrackingDataSourceEXT::CONTROLLER, xr::HandTrackingDataSourceEXT::UNOBSTRUCTED];
++    let data_sources = [
++        xr::HandTrackingDataSourceEXT::CONTROLLER,
++        xr::HandTrackingDataSourceEXT::UNOBSTRUCTED,
++    ];
+     let data_source_info = xr::sys::HandTrackingDataSourceInfoEXT {
+         ty: xr::sys::HandTrackingDataSourceInfoEXT::TYPE,
+         next: std::ptr::null(),
+@@ -1359,7 +1362,7 @@ fn create_hand_tracker_with_data_sources<G>(
+     };
+ 
+     let handle = {
+-        let mut handle = xr::sys::HandTrackerEXT::NULL;
++        let mut handle = <xr::sys::HandTrackerEXT as xr::sys::Handle>::NULL;
+         let r = unsafe { (ext.create_hand_tracker)(session.as_raw(), &info, &mut handle) };
+         if r.into_raw() < 0 {
+             return Err(r);
+-- 
+2.54.0
+

@@ -1,0 +1,84 @@
+From 69e3651d8ef3c9bcd4db8b16000039fc5bdcdb2d Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Thu, 1 Oct 2026 21:30:39 +0200
+Subject: [PATCH] input/skeletal: derive finger curl from summed joint flexion
+
+The end-to-end angle between the metacarpal and fingertip under-reports short fingers: in a full fist on the Steam Frame it gave index 0.95, middle 0.97, ring 0.87, pinky 0.75, while SteamVR reports 1.0 for all. Summing the bends at the three finger joints and normalising per finger (index/middle 285, ring 280, little 250 degrees) matches SteamVR's curls for both full fists and partial curls.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/input/skeletal.rs | 51 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 51 insertions(+)
+
+diff --git a/src/input/skeletal.rs b/src/input/skeletal.rs
+index 3920a8f..28be9cd 100644
+--- a/src/input/skeletal.rs
++++ b/src/input/skeletal.rs
+@@ -228,6 +228,11 @@ impl<C: openxr_data::Compositor> Input<C> {
+                 continue;
+             }
+ 
++            if i > 0 {
++                *out_curl = finger_curl(&joints, FINGER_JOINTS[i - 1], FULL_CURL_DEGREES[i - 1]);
++                continue;
++            }
++
+             let (metacarpal, proximal, tip) = match i {
+                 0 => (
+                     joints[xr::HandJoint::THUMB_METACARPAL],
+@@ -502,6 +507,52 @@ fn parent_to_model_space_bone_data(it: impl PoseIterator) -> impl PoseIterator {
+     )
+ }
+ 
++static FINGER_JOINTS: [[xr::HandJoint; 5]; 4] = [
++    [
++        xr::HandJoint::INDEX_METACARPAL,
++        xr::HandJoint::INDEX_PROXIMAL,
++        xr::HandJoint::INDEX_INTERMEDIATE,
++        xr::HandJoint::INDEX_DISTAL,
++        xr::HandJoint::INDEX_TIP,
++    ],
++    [
++        xr::HandJoint::MIDDLE_METACARPAL,
++        xr::HandJoint::MIDDLE_PROXIMAL,
++        xr::HandJoint::MIDDLE_INTERMEDIATE,
++        xr::HandJoint::MIDDLE_DISTAL,
++        xr::HandJoint::MIDDLE_TIP,
++    ],
++    [
++        xr::HandJoint::RING_METACARPAL,
++        xr::HandJoint::RING_PROXIMAL,
++        xr::HandJoint::RING_INTERMEDIATE,
++        xr::HandJoint::RING_DISTAL,
++        xr::HandJoint::RING_TIP,
++    ],
++    [
++        xr::HandJoint::LITTLE_METACARPAL,
++        xr::HandJoint::LITTLE_PROXIMAL,
++        xr::HandJoint::LITTLE_INTERMEDIATE,
++        xr::HandJoint::LITTLE_DISTAL,
++        xr::HandJoint::LITTLE_TIP,
++    ],
++];
++
++/// Total bend of a fully curled index, middle, ring and little finger, matched against SteamVR's
++/// curls for the Steam Frame (e.g. an index bent by 165 degrees is 0.58 there)
++static FULL_CURL_DEGREES: [f32; 4] = [285.0, 285.0, 280.0, 250.0];
++
++/// Curl from the total flexion of the knuckle, middle and end joints. One end-to-end angle
++/// under-reports short fingers (pinky ~0.75 in a full fist on the Steam Frame).
++fn finger_curl(joints: &[(Vec3, Quat)], finger: [xr::HandJoint; 5], full_curl_degrees: f32) -> f32 {
++    let pos = finger.map(|joint| joints[joint].0);
++    let bend: f32 = (1..4)
++        .map(|k| (pos[k] - pos[k - 1]).angle_between(pos[k + 1] - pos[k]))
++        .filter(|angle| angle.is_finite())
++        .sum();
++    (bend / full_curl_degrees.to_radians()).clamp(0.0, 1.0)
++}
++
+ /// The wrists appear to have to some sort of strange orientation compared
+ /// to the other joints - this rotation fixes it up
+ fn wrist_joint_fixup() -> Quat {
+-- 
+2.54.0
+
