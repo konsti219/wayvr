@@ -1,0 +1,179 @@
+From 1eed8443817bc7d7408dd8b807000570310f77a5 Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Thu, 1 Oct 2026 21:38:11 +0200
+Subject: [PATCH] Forward controller-inferred hand joints as conforming hand
+ tracking
+
+The Steam Frame's runtime reports finger poses from the controllers' sensors as XR_EXT_hand_tracking joints with data source CONTROLLER. The client dropped them, since it only forwarded UNOBSTRUCTED hands. Send them tagged, and expose them on the server as conforming hand tracking, so apps never mistake them for free hands.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ client/scenes/stream_tracking.cpp  | 16 ++++++++++++----
+ common/wivrn_packets.h             |  2 ++
+ server/driver/wivrn_controller.cpp | 21 ++++++++++++++++++++-
+ server/driver/wivrn_controller.h   |  1 +
+ server/driver/wivrn_session.cpp    |  2 ++
+ 5 files changed, 37 insertions(+), 5 deletions(-)
+
+diff --git a/client/scenes/stream_tracking.cpp b/client/scenes/stream_tracking.cpp
+index 2cc4c2e1..471585e1 100644
+--- a/client/scenes/stream_tracking.cpp
++++ b/client/scenes/stream_tracking.cpp
+@@ -155,11 +155,13 @@ public:
+ 
+ } // namespace
+ 
+-static std::optional<std::array<from_headset::hand_tracking::pose, XR_HAND_JOINT_COUNT_EXT>> locate_hands(xr::hand_tracker & hand, XrSpace space, XrTime time)
++static std::optional<std::array<from_headset::hand_tracking::pose, XR_HAND_JOINT_COUNT_EXT>> locate_hands(xr::hand_tracker & hand, XrSpace space, XrTime time, bool & from_controller)
+ {
+ 	auto located = hand.locate(space, time);
+ 
+-	if (located and located->is_input_source())
++	// Controller-inferred joints (e.g. finger sensing) are sent too, the server keeps them apart
++	from_controller = located and located->data_source == XR_HAND_TRACKING_DATA_SOURCE_CONTROLLER_EXT;
++	if (located)
+ 	{
+ 		std::array<from_headset::hand_tracking::pose, XR_HAND_JOINT_COUNT_EXT> poses;
+ 		for (int i = 0; i < XR_HAND_JOINT_COUNT_EXT; i++)
+@@ -505,21 +507,27 @@ void scenes::stream::tracking()
+ 						case wivrn::device_id::LEFT_HAND:
+ 							if (left_hand)
+ 							{
++								bool from_controller = false;
++								auto joints = locate_hands(*left_hand, height_offset_space, tracking.timestamp, from_controller);
+ 								hands.emplace_back(
+ 								        t0,
+ 								        at_time,
+ 								        from_headset::hand_tracking::left,
+-								        locate_hands(*left_hand, height_offset_space, tracking.timestamp));
++								        std::move(joints),
++								        from_controller);
+ 							}
+ 							break;
+ 						case wivrn::device_id::RIGHT_HAND:
+ 							if (right_hand)
+ 							{
++								bool from_controller = false;
++								auto joints = locate_hands(*right_hand, height_offset_space, tracking.timestamp, from_controller);
+ 								hands.emplace_back(
+ 								        t0,
+ 								        at_time,
+ 								        from_headset::hand_tracking::right,
+-								        locate_hands(*right_hand, height_offset_space, tracking.timestamp));
++								        std::move(joints),
++								        from_controller);
+ 							}
+ 							break;
+ 						case wivrn::device_id::BODY:
+diff --git a/common/wivrn_packets.h b/common/wivrn_packets.h
+index b58ce939..36b1864d 100644
+--- a/common/wivrn_packets.h
++++ b/common/wivrn_packets.h
+@@ -496,6 +496,8 @@ struct hand_tracking
+ 	XrTime timestamp;
+ 	hand_id hand;
+ 	std::optional<std::array<pose, XR_HAND_JOINT_COUNT_EXT>> joints;
++	// Joints inferred from the controller (XR_HAND_TRACKING_DATA_SOURCE_CONTROLLER_EXT)
++	bool from_controller;
+ };
+ 
+ struct meta_body
+diff --git a/server/driver/wivrn_controller.cpp b/server/driver/wivrn_controller.cpp
+index 21b60bf3..d6ae650c 100644
+--- a/server/driver/wivrn_controller.cpp
++++ b/server/driver/wivrn_controller.cpp
+@@ -52,6 +52,7 @@ enum wivrn_controller_input_index
+ 	WIVRN_CONTROLLER_PALM_POSE,
+ 	WIVRN_CONTROLLER_HAND_TRACKING_LEFT,
+ 	WIVRN_CONTROLLER_HAND_TRACKING_RIGHT = WIVRN_CONTROLLER_HAND_TRACKING_LEFT,
++	WIVRN_CONTROLLER_HAND_TRACKING_CONFORMING,
+ 
+ 	WIVRN_CONTROLLER_MENU_CLICK,        // /user/hand/XXXX/input/menu/click
+ 	WIVRN_CONTROLLER_MENU_TOUCH,        // /user/hand/XXXX/input/menu/touch
+@@ -739,6 +740,7 @@ wivrn_controller::wivrn_controller(xrt_device_name name,
+         pinch_ext(hand_id == 0 ? device_id::LEFT_PINCH_POSE : device_id::RIGHT_PINCH_POSE),
+         poke_ext(hand_id == 0 ? device_id::LEFT_POKE : device_id::RIGHT_POKE),
+         joints(hand_id),
++        conforming_joints(hand_id),
+         inputs_array(input_count, xrt_input{}),
+         cnx(cnx)
+ {
+@@ -778,6 +780,8 @@ wivrn_controller::wivrn_controller(xrt_device_name name,
+ 		{
+ 			inputs[WIVRN_CONTROLLER_HAND_TRACKING_LEFT].name = XRT_INPUT_HT_UNOBSTRUCTED_LEFT;
+ 			inputs[WIVRN_CONTROLLER_HAND_TRACKING_LEFT].active = true;
++			inputs[WIVRN_CONTROLLER_HAND_TRACKING_CONFORMING].name = XRT_INPUT_HT_CONFORMING_LEFT;
++			inputs[WIVRN_CONTROLLER_HAND_TRACKING_CONFORMING].active = true;
+ 			SET_INPUT(FRAME, VIEW_CLICK);
+ 			SET_INPUT(FRAME, VIEW_TOUCH);
+ 
+@@ -796,6 +800,8 @@ wivrn_controller::wivrn_controller(xrt_device_name name,
+ 		{
+ 			inputs[WIVRN_CONTROLLER_HAND_TRACKING_RIGHT].name = XRT_INPUT_HT_UNOBSTRUCTED_RIGHT;
+ 			inputs[WIVRN_CONTROLLER_HAND_TRACKING_RIGHT].active = true;
++			inputs[WIVRN_CONTROLLER_HAND_TRACKING_CONFORMING].name = XRT_INPUT_HT_CONFORMING_RIGHT;
++			inputs[WIVRN_CONTROLLER_HAND_TRACKING_CONFORMING].active = true;
+ 			SET_INPUT(FRAME, MENU_CLICK);
+ 			SET_INPUT(FRAME, MENU_TOUCH);
+ 
+@@ -976,6 +982,15 @@ xrt_result_t wivrn_controller::get_hand_tracking(xrt_input_name name, int64_t de
+ 			return XRT_SUCCESS;
+ 		}
+ 
++		case XRT_INPUT_HT_CONFORMING_LEFT:
++		case XRT_INPUT_HT_CONFORMING_RIGHT: {
++			*out_timestamp_ns = desired_timestamp_ns;
++			XrTime production_timestamp;
++			std::tie(production_timestamp, *out_value) = conforming_joints.get_at(desired_timestamp_ns);
++			cnx->add_tracking_request(conforming_joints.hand_id == 0 ? device_id::LEFT_HAND : device_id::RIGHT_HAND, desired_timestamp_ns, production_timestamp);
++			return XRT_SUCCESS;
++		}
++
+ 		default:
+ 			U_LOG_XDEV_UNSUPPORTED_INPUT(this, u_log_get_global_level(), name);
+ 			return XRT_ERROR_INPUT_UNSUPPORTED;
+@@ -1009,7 +1024,11 @@ void wivrn_controller::update_tracking(const from_headset::tracking & tracking,
+ 
+ void wivrn_controller::update_hand_tracking(const from_headset::hand_tracking & tracking, const clock_offset & offset)
+ {
+-	joints.update_tracking(tracking, offset);
++	// Controller-inferred joints only count as conforming hands, never as free (unobstructed) ones
++	auto inactive = tracking;
++	inactive.joints.reset();
++	joints.update_tracking(tracking.from_controller ? inactive : tracking, offset);
++	conforming_joints.update_tracking(tracking.from_controller ? tracking : inactive, offset);
+ }
+ 
+ xrt_result_t wivrn_controller::set_output(xrt_output_name name, const xrt_output_value * value)
+diff --git a/server/driver/wivrn_controller.h b/server/driver/wivrn_controller.h
+index a77f701b..c684eb84 100644
+--- a/server/driver/wivrn_controller.h
++++ b/server/driver/wivrn_controller.h
+@@ -42,6 +42,7 @@ class wivrn_controller : public xrt_device
+ 	pose_list pinch_ext;
+ 	pose_list poke_ext;
+ 	hand_joints_list joints;
++	hand_joints_list conforming_joints;
+ 
+ 	std::vector<xrt_input> inputs_staging;
+ 	std::vector<xrt_input> inputs_array;
+diff --git a/server/driver/wivrn_session.cpp b/server/driver/wivrn_session.cpp
+index 717e576f..248283f9 100644
+--- a/server/driver/wivrn_session.cpp
++++ b/server/driver/wivrn_session.cpp
+@@ -124,10 +124,12 @@ wivrn::wivrn_session::wivrn_session(std::unique_ptr<wivrn_connection> connection
+ 
+ 	roles.left = left_controller_index = static_xdev_count++;
+ 	static_roles.hand_tracking.unobstructed.left = static_xdevs[left_controller_index] = &left_controller;
++	static_roles.hand_tracking.conforming.left = &left_controller;
+ 	static_xdevs[left_hand_interaction_index = static_xdev_count++] = &left_hand_interaction;
+ 
+ 	roles.right = right_controller_index = static_xdev_count++;
+ 	static_roles.hand_tracking.unobstructed.right = static_xdevs[right_controller_index] = &right_controller;
++	static_roles.hand_tracking.conforming.right = &right_controller;
+ 	static_xdevs[right_hand_interaction_index = static_xdev_count++] = &right_hand_interaction;
+ 
+ 	// Expose a gamepad forwarded from the headset as a native OpenXR device (/user/gamepad).
+-- 
+2.54.0
+

@@ -1,0 +1,50 @@
+From ea8e35c34e94fdbeba246ba56e8ea6b4e56606e5 Mon Sep 17 00:00:00 2001
+From: konsti219 <37149441+konsti219@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 16:36:38 +0200
+Subject: [PATCH] server: route Frame left d-pad up/left to the left
+ controller, fix left/right swap
+
+---
+ server/driver/wivrn_controller.cpp | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/server/driver/wivrn_controller.cpp b/server/driver/wivrn_controller.cpp
+index d6ae650c..e593ff5a 100644
+--- a/server/driver/wivrn_controller.cpp
++++ b/server/driver/wivrn_controller.cpp
+@@ -176,13 +176,13 @@ input_data map_input(device_id id)
+ 		case device_id::B_TOUCH:
+ 			return {WIVRN_CONTROLLER_B_TOUCH, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_RIGHT_HAND_CONTROLLER};
+ 		case device_id::DPAD_UP_CLICK:
+-			return {WIVRN_CONTROLLER_DPAD_UP_CLICK, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_RIGHT_HAND_CONTROLLER};
++			return {WIVRN_CONTROLLER_DPAD_UP_CLICK, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_LEFT_HAND_CONTROLLER};
+ 		case device_id::DPAD_UP_TOUCH:
+-			return {WIVRN_CONTROLLER_DPAD_UP_TOUCH, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_RIGHT_HAND_CONTROLLER};
++			return {WIVRN_CONTROLLER_DPAD_UP_TOUCH, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_LEFT_HAND_CONTROLLER};
+ 		case device_id::DPAD_LEFT_CLICK:
+-			return {WIVRN_CONTROLLER_DPAD_LEFT_CLICK, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_RIGHT_HAND_CONTROLLER};
++			return {WIVRN_CONTROLLER_DPAD_LEFT_CLICK, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_LEFT_HAND_CONTROLLER};
+ 		case device_id::DPAD_LEFT_TOUCH:
+-			return {WIVRN_CONTROLLER_DPAD_LEFT_TOUCH, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_RIGHT_HAND_CONTROLLER};
++			return {WIVRN_CONTROLLER_DPAD_LEFT_TOUCH, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_LEFT_HAND_CONTROLLER};
+ 		case device_id::LEFT_MENU_CLICK:
+ 			return {WIVRN_CONTROLLER_MENU_CLICK, wivrn_input_type::BOOL, XRT_DEVICE_TYPE_LEFT_HAND_CONTROLLER};
+ 		case device_id::RIGHT_MENU_CLICK:
+@@ -409,10 +409,10 @@ xrt_binding_input_pair frame_input_binding_left[] = {
+         {XRT_INPUT_FRAME_DPAD_UP_TOUCH, XRT_INPUT_FRAME_DPAD_UP_TOUCH},
+         {XRT_INPUT_FRAME_DPAD_DOWN_CLICK, XRT_INPUT_TOUCH_X_CLICK},
+         {XRT_INPUT_FRAME_DPAD_DOWN_TOUCH, XRT_INPUT_TOUCH_X_TOUCH},
+-        {XRT_INPUT_FRAME_DPAD_LEFT_CLICK, XRT_INPUT_TOUCH_Y_CLICK},
+-        {XRT_INPUT_FRAME_DPAD_LEFT_TOUCH, XRT_INPUT_TOUCH_Y_TOUCH},
+-        {XRT_INPUT_FRAME_DPAD_RIGHT_CLICK, XRT_INPUT_FRAME_DPAD_RIGHT_CLICK},
+-        {XRT_INPUT_FRAME_DPAD_RIGHT_TOUCH, XRT_INPUT_FRAME_DPAD_RIGHT_TOUCH},
++        {XRT_INPUT_FRAME_DPAD_LEFT_CLICK, XRT_INPUT_FRAME_DPAD_LEFT_CLICK},
++        {XRT_INPUT_FRAME_DPAD_LEFT_TOUCH, XRT_INPUT_FRAME_DPAD_LEFT_TOUCH},
++        {XRT_INPUT_FRAME_DPAD_RIGHT_CLICK, XRT_INPUT_TOUCH_Y_CLICK},
++        {XRT_INPUT_FRAME_DPAD_RIGHT_TOUCH, XRT_INPUT_TOUCH_Y_TOUCH},
+         {XRT_INPUT_FRAME_VIEW_CLICK, XRT_INPUT_FRAME_VIEW_CLICK},
+         {XRT_INPUT_FRAME_VIEW_TOUCH, XRT_INPUT_FRAME_VIEW_TOUCH},
+         {XRT_INPUT_FRAME_SYSTEM_CLICK, XRT_INPUT_TOUCH_MENU_CLICK},
+-- 
+2.54.0
+

@@ -334,6 +334,10 @@
           ++ [
             ./nix/wivrn-metrics-init.patch
             ./nix/wivrn-disable-layer-commit-debug.patch
+            # Forward controller-inferred hand joints (Frame finger sensing) as conforming hand tracking
+            ./nix/wivrn-frame-controller-hand-joints.patch
+            # Frame left d-pad: route up/left to the left controller and undo the left/right swap
+            ./nix/wivrn-frame-dpad.patch
           ];
         postPatch =
           (oldAttrs.postPatch or "")
