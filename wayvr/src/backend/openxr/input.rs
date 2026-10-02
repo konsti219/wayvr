@@ -674,6 +674,23 @@ impl OpenXrPointer {
 
         pointer.now.space_reset = self.source.space_reset.state(physical_inputs);
 
+        // A button bound to both click and space_drag (e.g. the Frame's bumpers) decides when pressed:
+        // it clicks while pointing at an overlay and drags the playspace otherwise
+        let interaction = &mut pointer.interaction;
+        if !(pointer.now.click && pointer.now.space_drag) {
+            interaction.shared_press_clicks = None;
+        } else if !pointer.before.click && !pointer.before.space_drag {
+            interaction.shared_press_clicks = Some(interaction.hovered_id.is_some());
+        }
+        match interaction.shared_press_clicks {
+            Some(true) => {
+                pointer.now.space_drag = false;
+                pointer.now.space_reset = false;
+            }
+            Some(false) => pointer.now.click = false,
+            None => {}
+        }
+
         Ok(())
     }
 }

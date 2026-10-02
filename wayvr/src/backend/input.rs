@@ -330,6 +330,8 @@ pub struct InteractionState {
     pub grabbed: Option<GrabData>,
     pub clicked_id: Option<OverlayID>,
     pub hovered_id: Option<OverlayID>,
+    /// For a button bound to both click and space_drag: whether its current press clicks (true) or drags (false)
+    pub shared_press_clicks: Option<bool>,
     /// How much of this hand's input is withheld from the running game.
     pub block_input: BlockMode,
     pub should_block_poses: bool,
@@ -343,6 +345,7 @@ impl Default for InteractionState {
             grabbed: None,
             clicked_id: None,
             hovered_id: None,
+            shared_press_clicks: None,
             block_input: BlockMode::None,
             should_block_poses: false,
             kbd_block_activated: false,
