@@ -277,9 +277,10 @@
             ./nix/xrizer-finger-curl.patch
             # Some apps ignore right hand inputs when bound on both hands, merge both into the left query
             ./nix/xrizer-both-hand-binds.patch
+            # main dlopens a bare libopenxr_loader.so, which isn't findable (esp. in Proton); link it instead
+            ./nix/xrizer-linked-openxr.patch
           ];
 
-        # main links OpenXR dynamically by default, so only the libGLX fixup is left
         postPatch = ''
           substituteInPlace src/graphics_backends/gl.rs \
             --replace-fail 'libGLX.so.0' '${lib.getLib pkgs.libglvnd}/lib/libGLX.so.0'

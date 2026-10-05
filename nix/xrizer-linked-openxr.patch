@@ -1,0 +1,14 @@
+diff --git a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -12,8 +12,8 @@
+ crate-type = ["cdylib"]
+ 
+ [features]
+-default = ["monado", "git-version"]
+-static-openxr = ["openxr/static"]
++default = ["monado", "git-version", "static-openxr"]
++static-openxr = ["openxr/linked"]
+ tracing = ["dep:tracy-client", "openvr/tracing"]
+ monado = ["dep:openxr_mndx_xdev_space"]
+ # Derive the reported version from `git describe`. Disable when building outside
