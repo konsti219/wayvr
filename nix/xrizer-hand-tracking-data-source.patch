@@ -1,4 +1,4 @@
-From 9da79b370b1dfca8798584b7f266e19297b0c5b7 Mon Sep 17 00:00:00 2001
+From fa8c7e21ebfce466497aa554d32fba90ddde14b5 Mon Sep 17 00:00:00 2001
 From: Sapphire <imsapphire0@gmail.com>
 Date: Wed, 7 Jan 2026 00:47:45 -0600
 Subject: [PATCH 1/3] input: store skeletal tracking level per-hand
@@ -67,7 +67,7 @@ index f041705..74ec269 100644
 2.54.0
 
 
-From c31c2908259e457526d0660c443cf1dfac787768 Mon Sep 17 00:00:00 2001
+From af044d53b64f152fba5eeb7b77b28ea00a736772 Mon Sep 17 00:00:00 2001
 From: Sapphire <imsapphire0@gmail.com>
 Date: Mon, 23 Feb 2026 02:50:08 -0600
 Subject: [PATCH 2/3] input: use XR_EXT_hand_tracking_data_source for skeletal
@@ -200,7 +200,7 @@ index 6ef00b7..83270ee 100644
                          TrackedDeviceType::Controller {
                              hand,
 diff --git a/src/input/devices.rs b/src/input/devices.rs
-index bdd9e70..7801011 100644
+index 4a15e4e..b3a5244 100644
 --- a/src/input/devices.rs
 +++ b/src/input/devices.rs
 @@ -1,6 +1,7 @@
@@ -211,7 +211,7 @@ index bdd9e70..7801011 100644
  use std::sync::Mutex;
  
  use glam::Mat4;
-@@ -21,12 +22,18 @@ use log::trace;
+@@ -22,12 +23,18 @@ use log::trace;
  
  use super::{Input, InteractionProfile, profiles::MainAxisType};
  
@@ -231,7 +231,7 @@ index bdd9e70..7801011 100644
      },
      #[cfg(feature = "monado")]
      GenericTracker {
-@@ -131,6 +138,50 @@ fn get_controller_pose(
+@@ -134,6 +141,50 @@ fn get_controller_pose(
      Some(vr::space_relation_to_openvr_pose(location, velocity))
  }
  
@@ -282,7 +282,7 @@ index bdd9e70..7801011 100644
  #[cfg(feature = "monado")]
  fn get_generic_tracker_pose(
      xr_data: &OpenXrData<impl crate::openxr_data::Compositor>,
-@@ -197,7 +248,7 @@ impl TrackedDevice {
+@@ -200,7 +251,7 @@ impl TrackedDevice {
          &self,
          xr_data: &OpenXrData<impl crate::openxr_data::Compositor>,
          base: &xr::Space,
@@ -291,7 +291,7 @@ index bdd9e70..7801011 100644
          let TrackedDeviceType::Controller {
              hand_tracker,
              skeleton_cache,
-@@ -208,14 +259,24 @@ impl TrackedDevice {
+@@ -211,14 +262,24 @@ impl TrackedDevice {
          };
          let mut skeleton_cache = skeleton_cache.lock().unwrap();
          if let Some(skeleton) = skeleton_cache.get(&base.as_raw().into_raw()) {
@@ -396,7 +396,7 @@ index f43a5e5..e5bbeef 100644
 2.54.0
 
 
-From 4a30fbf16fd4ba3291b8ced8bfbad7c7cc4edcde Mon Sep 17 00:00:00 2001
+From ac2c2b99f5c412ed436e19ece0c1a8d9adfc51e0 Mon Sep 17 00:00:00 2001
 From: konsti219 <37149441+konsti219@users.noreply.github.com>
 Date: Thu, 1 Oct 2026 20:43:43 +0200
 Subject: [PATCH 3/3] Fix PR 338 build on current main (Handle trait not in

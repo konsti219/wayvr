@@ -1,4 +1,4 @@
-From 69e3651d8ef3c9bcd4db8b16000039fc5bdcdb2d Mon Sep 17 00:00:00 2001
+From 1c28d944e64fb3bffec92a1dbb1121fffb273cfe Mon Sep 17 00:00:00 2001
 From: konsti219 <37149441+konsti219@users.noreply.github.com>
 Date: Thu, 1 Oct 2026 21:30:39 +0200
 Subject: [PATCH] input/skeletal: derive finger curl from summed joint flexion

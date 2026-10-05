@@ -1,4 +1,4 @@
-From 9c790a9d4be8645593ba9508dbf7a50e1480c2e8 Mon Sep 17 00:00:00 2001
+From 1e0d80715cd15a0d585280775f639fc022a2f315 Mon Sep 17 00:00:00 2001
 From: konsti219 <37149441+konsti219@users.noreply.github.com>
 Date: Thu, 1 Oct 2026 21:22:42 +0200
 Subject: [PATCH] input/skeletal: use SteamVR's fixed wrist for

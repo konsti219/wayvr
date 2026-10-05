@@ -1,4 +1,4 @@
-From 1d77565c278e25af567565aa321200d71bc505d0 Mon Sep 17 00:00:00 2001
+From ba0749edb8e1c98bc39cc1e3b2846bac3ac6f4b9 Mon Sep 17 00:00:00 2001
 From: konsti219 <37149441+konsti219@users.noreply.github.com>
 Date: Fri, 2 Oct 2026 16:26:06 +0200
 Subject: [PATCH] input: merge both hands into VRChat's left-hand mic query

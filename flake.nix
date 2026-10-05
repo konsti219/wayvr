@@ -275,8 +275,8 @@
             ./nix/xrizer-controller-wrist.patch
             # Finger curl from summed joint bends (pinky under-curled before)
             ./nix/xrizer-finger-curl.patch
-            # VRChat ignores right-hand mic when also bound left; merge both into the left query
-            ./nix/xrizer-vrchat-mic.patch
+            # Some apps ignore right hand inputs when bound on both hands, merge both into the left query
+            ./nix/xrizer-both-hand-binds.patch
           ];
 
         # main links OpenXR dynamically by default, so only the libGLX fixup is left
@@ -314,16 +314,18 @@
 
         cmakeFlags =
           builtins.filter
-            (flag: !(lib.hasPrefix "-DGIT_TAG:" flag || lib.hasPrefix "-DGIT_DESC:" flag || lib.hasPrefix "-DGIT_COMMIT:" flag))
-            (oldAttrs.cmakeFlags or [])
+          (flag: !(lib.hasPrefix "-DGIT_TAG:" flag || lib.hasPrefix "-DGIT_DESC:" flag || lib.hasPrefix "-DGIT_COMMIT:" flag))
+          (oldAttrs.cmakeFlags or [])
           ++ [
             (lib.cmakeFeature "GIT_DESC" "7e0bf5e")
             (lib.cmakeFeature "GIT_COMMIT" "7e0bf5efc1f4298b433eff1c6f3d81a1bc401b44")
           ];
 
-        meta = oldAttrs.meta // {
-          changelog = "https://github.com/WiVRn/WiVRn/commit/7e0bf5efc1f4298b433eff1c6f3d81a1bc401b44";
-        };
+        meta =
+          oldAttrs.meta
+          // {
+            changelog = "https://github.com/WiVRn/WiVRn/commit/7e0bf5efc1f4298b433eff1c6f3d81a1bc401b44";
+          };
 
         # NOTE: wivrn-comp-target-gpu-metrics.patch was dropped for WiVRn 26.6:
         # the compositor refactor removed server/driver/wivrn_comp_target.cpp, and
