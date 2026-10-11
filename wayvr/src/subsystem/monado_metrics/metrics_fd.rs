@@ -10,8 +10,6 @@ use crate::subsystem::monado_metrics::proto;
 
 pub struct MonadoMetricsFd {
     stream_reader: UnixStream,
-    #[allow(dead_code)]
-    stream_writer: UnixStream,
 
     records: VecDeque<proto::Record>,
     read_buffer: Vec<u8>,
@@ -26,10 +24,11 @@ impl MonadoMetricsFd {
         stream_reader.set_nonblocking(true)?;
 
         monado.push_metrics_fd(stream_writer.as_fd(), true)?;
+        // Monado holds its own copy now; dropping ours lets us see EOF when it drops the sink.
+        drop(stream_writer);
 
         Ok(Self {
             stream_reader,
-            stream_writer,
             records: VecDeque::new(),
             read_buffer: Vec::new(),
         })
@@ -76,24 +75,21 @@ impl MonadoMetricsFd {
         }
     }
 
-    // called every frame
-    pub fn update(&mut self) {
+    // called every frame; returns false once Monado has closed its end of the stream
+    pub fn update(&mut self) -> bool {
         let mut buf = [0_u8; 4096];
 
         loop {
             match self.stream_reader.read(&mut buf) {
-                Ok(0) => {
-                    debug_assert!(false);
-                    break;
-                }
+                Ok(0) => return false,
                 Ok(byte_count) => {
                     self.read_buffer.extend_from_slice(&buf[..byte_count]);
                     self.drain_read_buffer();
                 }
-                Err(e) if e.kind() == ErrorKind::WouldBlock => break,
+                Err(e) if e.kind() == ErrorKind::WouldBlock => return true,
                 Err(e) => {
                     log::error!("Failed to read Monado metrics stream: {e}");
-                    break;
+                    return false;
                 }
             }
         }

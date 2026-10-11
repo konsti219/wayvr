@@ -206,11 +206,19 @@ impl MonadoState {
     pub fn update(&mut self) {
         #[cfg(feature = "feat-monado-metrics")]
         if let Some(metrics) = &mut self.metrics {
-            metrics.update();
+            let alive = metrics.update();
 
             for record in metrics.dump_records() {
                 self.watch_metrics.ingest(&record);
                 self.watch_metrics.push_record(record);
+            }
+
+            // Monado drops sinks that can't keep up (full socket buffer), so reconnect.
+            if !alive {
+                log::warn!("Monado closed the metrics stream, reconnecting");
+                self.metrics = MonadoMetricsFd::new(&mut self.ipc)
+                    .inspect_err(|e| log::error!("Failed to reconnect Monado metrics: {e:?}"))
+                    .ok();
             }
         }
     }

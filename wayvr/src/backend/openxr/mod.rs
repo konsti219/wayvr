@@ -259,6 +259,11 @@ pub fn openxr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
             next_device_update = Instant::now() + Duration::from_secs(30);
         }
 
+        // Drain metrics even when not rendering, or Monado drops the stream once its buffer fills.
+        if let Some(monado_state) = &mut app.monado_state {
+            monado_state.update();
+        }
+
         if !session_running {
             std::thread::sleep(Duration::from_millis(100));
             log::trace!("session not running: continue");
@@ -476,10 +481,6 @@ pub fn openxr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
         lines.render(&app, &mut futures)?;
         futures.wait()?;
         // End rendering
-
-        if let Some(monado_state) = &mut app.monado_state {
-            monado_state.update();
-        }
 
         // Layer composition
         let mut layers = vec![];
