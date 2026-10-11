@@ -500,7 +500,7 @@ fn upload_missing_glyphs(
 			)?;
 		}
 
-		cmd_buf.build_and_execute_now()?;
+		cmd_buf.build_and_submit_detached()?;
 	}
 
 	for upload in atlas_uploads {

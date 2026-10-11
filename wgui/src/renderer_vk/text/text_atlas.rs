@@ -237,7 +237,7 @@ impl InnerAtlas {
 				Some([width as _, height as _, 1]),
 			)?;
 		}
-		cmd_buf.build_and_execute_now()?;
+		cmd_buf.build_and_submit_detached()?;
 
 		self.size = new_size;
 

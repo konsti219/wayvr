@@ -48,6 +48,22 @@ impl GpuCompletionMarker {
 	}
 }
 
+/// GPU work submitted as one batch; dropping it blocks until the GPU is done with it
+pub struct GpuSubmission {
+	raw: raw::RawSubmission,
+	_command_buffers: Vec<Arc<BuiltCommandBuffer>>,
+}
+
+impl GpuSubmission {
+	pub fn wait(&self) -> anyhow::Result<()> {
+		self.raw.wait()
+	}
+
+	pub fn is_complete(&self) -> anyhow::Result<bool> {
+		self.raw.is_complete()
+	}
+}
+
 pub fn upload_quad_vertices(
 	buf: &Buffer<Vert2Uv>,
 	width: f32,
@@ -121,6 +137,7 @@ pub struct WGfx {
 	surface_format: Format,
 	texture_filter: Filter,
 	samplers: Mutex<HashMap<SamplerCreateInfo, Weak<Sampler>>>,
+	detached: Mutex<Vec<GpuSubmission>>,
 }
 
 impl WGfx {
@@ -192,6 +209,7 @@ impl WGfx {
 			surface_format,
 			texture_filter,
 			samplers: Mutex::new(HashMap::new()),
+			detached: Mutex::new(Vec::new()),
 		})
 	}
 
@@ -213,7 +231,31 @@ impl WGfx {
 
 	/// Wait until all submissions on this vk device are finished
 	pub fn wait_idle(&self) -> anyhow::Result<()> {
-		self.raw.wait_idle()
+		self.raw.wait_idle()?;
+		self.detached.lock().clear();
+		Ok(())
+	}
+
+	/// Submit command buffers in one batch without waiting for them to finish
+	pub fn submit(&self, command_buffers: Vec<Arc<BuiltCommandBuffer>>) -> anyhow::Result<GpuSubmission> {
+		let raw = {
+			let guards = command_buffers.iter().map(|c| c.raw.lock()).collect::<Vec<_>>();
+			let raws = guards.iter().map(|g| &**g).collect::<Vec<_>>();
+			self.raw.submit(&raws)?
+		};
+		Ok(GpuSubmission {
+			raw,
+			_command_buffers: command_buffers,
+		})
+	}
+
+	/// Submit without waiting, keeping the command buffer alive until the GPU is done with it
+	pub fn submit_detached(&self, command_buffer: Arc<BuiltCommandBuffer>) -> anyhow::Result<()> {
+		let submission = self.submit(vec![command_buffer])?;
+		let mut detached = self.detached.lock();
+		detached.retain(|s| !s.is_complete().unwrap_or(true));
+		detached.push(submission);
+		Ok(())
 	}
 
 	/// Submit a non-blocking completion marker to the queue

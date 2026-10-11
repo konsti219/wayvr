@@ -5,7 +5,8 @@ use std::{collections::HashMap, sync::Arc};
 
 use smallvec::SmallVec;
 use wgui::gfx::{
-    BufferUsage, BuiltCommandBuffer, Format, ShaderModule, Vert2Buf, Vert2Uv, WGfx, WGfxCreateInfo,
+    BufferUsage, BuiltCommandBuffer, Format, GpuSubmission, ShaderModule, Vert2Buf, Vert2Uv, WGfx,
+    WGfxCreateInfo,
 };
 use wlx_capture::DrmFormat;
 
@@ -199,9 +200,16 @@ impl GpuFutures {
         self.command_buffers.extend(results);
     }
 
-    pub fn wait(self) -> anyhow::Result<()> {
-        for command_buffer in self.command_buffers {
-            command_buffer.submit_and_wait()?;
+    pub fn submit(self, gfx: &WGfx) -> anyhow::Result<Option<GpuSubmission>> {
+        if self.command_buffers.is_empty() {
+            return Ok(None);
+        }
+        gfx.submit(self.command_buffers).map(Some)
+    }
+
+    pub fn wait(self, gfx: &WGfx) -> anyhow::Result<()> {
+        if let Some(submission) = self.submit(gfx)? {
+            submission.wait()?;
         }
         Ok(())
     }

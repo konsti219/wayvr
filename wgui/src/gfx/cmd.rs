@@ -65,6 +65,11 @@ impl<T> CommandBufferBuilder<T> {
 		self.build_and_execute()
 	}
 
+	pub fn build_and_submit_detached(self) -> anyhow::Result<()> {
+		let graphics = self.graphics.clone();
+		graphics.submit_detached(self.build()?)
+	}
+
 	pub fn transition_image(&mut self, image: &Arc<Image>, new_layout: ImageLayout) -> anyhow::Result<()> {
 		self.raw.transition_image(&image.raw, new_layout);
 		self.keepalive.push(Box::new(image.clone()));

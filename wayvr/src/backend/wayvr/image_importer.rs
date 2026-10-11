@@ -40,7 +40,7 @@ impl ImageImporter {
         let rgba = spb.rgba8888();
         let image = cmd_buf.upload_image(1, 1, Format::R8G8B8A8_UNORM, &rgba)?;
 
-        cmd_buf.build_and_execute_now()?; //TODO: async
+        cmd_buf.build_and_submit_detached()?;
 
         self.gfx.create_image_view(image)
     }
@@ -92,7 +92,7 @@ impl ImageImporter {
         }
 
         let image = cmd_buf.upload_image(bd.width as _, bd.height as _, format, &packed)?;
-        cmd_buf.build_and_execute_now()?;
+        cmd_buf.build_and_submit_detached()?;
 
         self.gfx.create_image_view(image)
     }

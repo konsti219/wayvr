@@ -1649,6 +1649,32 @@ impl Context {
 		})
 	}
 
+	pub(super) fn submit(self: &Arc<Self>, buffers: &[&RawCommandBuffer]) -> anyhow::Result<RawSubmission> {
+		let Some(first) = buffers.first() else {
+			bail!("cannot submit an empty batch");
+		};
+		if buffers.iter().any(|b| !b.ended) {
+			bail!("cannot submit an unfinished command buffer");
+		}
+		if buffers.iter().any(|b| b.queue.handle != first.queue.handle) {
+			bail!("cannot submit command buffers for different queues in one batch");
+		}
+
+		let handles = buffers.iter().map(|b| b.handle).collect::<Vec<_>>();
+		let submits = [vk::SubmitInfo::default().command_buffers(&handles)];
+		let fence = unsafe { self.device.create_fence(&vk::FenceCreateInfo::default(), None) }
+			.map_err(|e| anyhow!("vkCreateFence failed: {e:?}"))?;
+		if let Err(e) = unsafe { self.device.queue_submit(first.queue.handle, &submits, fence) } {
+			unsafe { self.device.destroy_fence(fence, None) };
+			return Err(anyhow!("vkQueueSubmit failed: {e:?}"));
+		}
+
+		Ok(RawSubmission {
+			context: self.clone(),
+			fence,
+		})
+	}
+
 	pub(super) fn create_command_buffer(
 		self: &Arc<Self>,
 		queue_type: QueueType,
@@ -1711,6 +1737,7 @@ struct DeviceCandidate {
 	enabled_extensions: Vec<String>,
 	score: i32,
 }
+
 
 pub(super) struct RawSwapchainOwner {
 	context: Arc<Context>,
@@ -2130,6 +2157,31 @@ impl RawQueueCompletionMarker {
 
 impl Drop for RawQueueCompletionMarker {
 	fn drop(&mut self) {
+		unsafe { self.context.device.destroy_fence(self.fence, None) };
+	}
+}
+
+pub(super) struct RawSubmission {
+	context: Arc<Context>,
+	fence: vk::Fence,
+}
+
+impl RawSubmission {
+	pub(super) fn wait(&self) -> anyhow::Result<()> {
+		unsafe { self.context.device.wait_for_fences(&[self.fence], true, u64::MAX) }
+			.map_err(|e| anyhow!("vkWaitForFences failed: {e:?}"))
+	}
+
+	pub(super) fn is_complete(&self) -> anyhow::Result<bool> {
+		unsafe { self.context.device.get_fence_status(self.fence) }.map_err(|e| anyhow!("vkGetFenceStatus failed: {e:?}"))
+	}
+}
+
+impl Drop for RawSubmission {
+	fn drop(&mut self) {
+		if let Err(e) = self.wait() {
+			log::error!("{e:?}");
+		}
 		unsafe { self.context.device.destroy_fence(self.fence, None) };
 	}
 }
@@ -2617,22 +2669,7 @@ impl RawCommandBuffer {
 
 	pub(super) fn submit_and_wait(&mut self) -> anyhow::Result<()> {
 		self.finish()?;
-		let buffers = [self.handle];
-		let submits = [vk::SubmitInfo::default().command_buffers(&buffers)];
-		let fence_info = vk::FenceCreateInfo::default();
-		let fence = unsafe { self.context.device.create_fence(&fence_info, None) }
-			.map_err(|e| anyhow!("vkCreateFence failed: {e:?}"))?;
-		let submit_result = unsafe { self.context.device.queue_submit(self.queue.handle, &submits, fence) }
-			.map_err(|e| anyhow!("vkQueueSubmit failed: {e:?}"));
-		let wait_result = if submit_result.is_ok() {
-			unsafe { self.context.device.wait_for_fences(&[fence], true, u64::MAX) }
-				.map_err(|e| anyhow!("vkWaitForFences failed: {e:?}"))
-		} else {
-			Ok(())
-		};
-		unsafe { self.context.device.destroy_fence(fence, None) };
-		submit_result?;
-		wait_result
+		self.context.clone().submit(&[&*self])?.wait()
 	}
 }
 

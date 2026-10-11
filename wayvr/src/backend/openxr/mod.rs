@@ -9,7 +9,7 @@ use glam::{Affine3A, Vec3};
 use input::OpenXrInputSource;
 use openxr as xr;
 use skybox::{Skybox, create_skybox};
-use wgui::i18n::Translation;
+use wgui::{gfx::GpuSubmission, i18n::Translation};
 use wlx_common::{
     dash_interface::InterfaceFeats,
     overlays::{StereoMode, ToastTopic},
@@ -177,6 +177,7 @@ pub fn openxr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
     let mut environment_blend_mode = modes[0];
     let mut last_frame_time = Instant::now();
     let mut retired_swapchains = SwapchainRetirementQueue::default();
+    let mut frame_in_flight: Option<GpuSubmission> = None;
 
     // declared last so rust drops this before all long-lived XR objects
     let _gpu_idle_before_xr_drop = OpenXrGpuIdleGuard(app.gfx.clone());
@@ -277,6 +278,12 @@ pub fn openxr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
         let xr_frame_state = frame_wait.wait()?;
         log::trace!("xrBeginFrame");
         frame_stream.begin()?;
+
+        // reused buffers must not be written while the previous frame is still on the GPU
+        if let Some(submission) = frame_in_flight.take() {
+            log::trace!("wait for previous frame");
+            submission.wait()?;
+        }
 
         xr_state.predicted_display_time = xr_frame_state.predicted_display_time;
         xr_state.fps = {
@@ -479,7 +486,7 @@ pub fn openxr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
         }
 
         lines.render(&app, &mut futures)?;
-        futures.wait()?;
+        frame_in_flight = futures.submit(&app.gfx)?;
         // End rendering
 
         // Layer composition

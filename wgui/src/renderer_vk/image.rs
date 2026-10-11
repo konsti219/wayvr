@@ -213,7 +213,7 @@ impl ImageRenderer {
 				uploaded_image_views[upload_idx] = Some(gfx.create_image_view(image)?);
 			}
 
-			xfer_cmd_buf.build_and_execute_now()?;
+			xfer_cmd_buf.build_and_submit_detached()?;
 
 			for (upload_idx, upload) in pending_uploads.iter().enumerate() {
 				let Some(image_view) = uploaded_image_views[upload_idx].as_ref() else {
