@@ -197,8 +197,6 @@
 		"SAVE_PLAYSPACE_CENTER_HELP": "Nutze aktuellen Playspace für die Playspace-Reset-Belegung.",
 		"RESET_PLAYSPACE_CENTER": "Playspace-Zentrum zurücksetzen",
 		"RESET_PLAYSPACE_CENTER_HELP": "Vorheriges Playspace-Zentrum zurücksetzen.",
-		"RESTART_SOFTWARE": "Software neu starten",
-		"RESTART_SOFTWARE_HELP": "Einstellungen übernehmen, die einen Neustart erfordern",
 		"ROUND_MULTIPLIER": "Abrundung der UI-Kanten",
 		"SCREEN_RENDER_DOWN": "Bildschirm mit niedrigerer Auflösung rendern",
 		"SCREEN_RENDER_DOWN_HELP": "Hilft gegen Treppeneffekte bei hochauflösenden Bildschirmen",
@@ -208,7 +206,6 @@
 		"SNAP_ANGLE_DEG_HELP": "Gegriffene Fenster rasten auf der Nick- und Rollachse in diesem Winkel ein.",
 		"ENABLE_WATCH": "Handgelenk-Uhr aktivieren",
 		"SETS_ON_WATCH": "Sets auf Handgelenk-Uhr",
-		"SHOW_WELCOME_SCREEN": "Willkommensbildschirm anzeigen",
 		"SKYBOX": "Skymap",
 		"SKYMAP_ALREADY_DOWNLOADED": "Diese Skymap ist bereits heruntergeladen. Wähle eine Aktion aus.",
 		"SPACE_DRAG": "Playspace",
@@ -251,15 +248,22 @@
 		"ROTATIONS": "HMD-Rotationen",
 		"SESSION_TIME": "Sitzungszeit",
 		"LENS_SEPARATION_MM": "Linsenabstand (mm)",
-		"DIAGNOSTICS": "Diagnose",
 		"MIDDLE_GRABS_SINGLE": "Mittelklick-Modifier greift einzeln",
 		"MIDDLE_GRABS_SINGLE_HELP": "Greifen mit dem Mittelklick-Modifier (lila Laser) \ngreift einzelne Overlays statt des gesamten Sets",
 		"DIAGNOSTICS_REASON": {
-			"PACTL": "Erforderlich für Lautsprecher-/Mikrofonsteuerung und das Wechseln der Audiokarte",
+			"PACTL": "Erforderlich für Lautsprecher-/Mikrofonsteuerung und das Wechseln der Soundkarte",
 			"CAGE": "Empfohlen bei Inkompatibilitäten mit einigen X11-Anwendungen (Kompatibilitätsmodus)",
 			"XWAYLAND_SATELLITE": "Empfohlen, wenn X11 (Xwayland) Anwendungen im nativen Modus ausgeführt werden sollen",
 			"XDG_OPEN": "Erforderlich zum Öffnen von URLs oder Steam-Spielen"
-		}
+		},
+		"DIAGNOSTICS": {
+			"CPU_ACCESSIBLE_VRAM": "CPU-zugänglicher VRAM: {NUM} MiB",
+			"TITLE": "Diagnose",
+			"ENABLE_REBAR": "Aktiviere resizable bar in den BIOS-Einstellungen für optimale VR-Performance"
+		},
+		"TUTORIAL": "Tutorial",
+		"RESTART_WAYVR": "WayVR neu starten",
+		"CLOSE_WAYVR": "WayVR schließen"
 	},
 	"APPLICATION_LAUNCHER": "Programmstarter",
 	"APPLICATION_STARTED": "Anwendung gestartet",
@@ -276,7 +280,8 @@
 		"SETTINGS": "Audio-Einstellungen",
 		"SPEAKERS": "Lautsprecher",
 		"SPEAKERS_SET_SUCCESSFULLY": "Lautsprecher erfolgreich eingestellt",
-		"VOLUME": "Lautstärke"
+		"VOLUME": "Lautstärke",
+		"SWITCH_TO_THIS_DEVICE": "Zu diesem Gerät wechseln"
 	},
 	"CLOSE_WINDOW": "Fenster schließen",
 	"CREATION_DATE": "Erstellungsdatum",
@@ -363,5 +368,13 @@
 	"REMOVE_FROM_FAVOURITES": "Aus angehefteten Anwendungen entfernen",
 	"EMPTY": "Leer",
 	"INSTALLED": "Installiert",
-	"NOT_INSTALLED": "Nicht installiert"
+	"NOT_INSTALLED": "Nicht installiert",
+	"POWER_OPTIONS": {
+		"TITLE": "Energieoptionen",
+		"SHUTDOWN": "Herunterfahren",
+		"SUSPEND": "Ruhezustand",
+		"SHUTDOWN_ARE_YOU_SURE": "Bist du sicher, dass du den Computer ausschalten willst?"
+	},
+	"YES": "Ja",
+	"NO": "Nein"
 }

@@ -116,6 +116,10 @@ pub fn openvr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
 
     let mut overlays = OverlayWindowManager::<OpenVrOverlayData>::new(&mut app, args.headless)?;
 
+    let mut dashboard_hidden = false;
+    let mut dash_toast_shown = false;
+    let mut dash_toast_id = None;
+
     let mut playspace = playspace::PlayspaceMover::new();
     playspace.playspace_changed(&mut compositor_mgr, &mut chaperone_mgr);
 
@@ -218,6 +222,39 @@ pub fn openvr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
             }
         }
 
+        if !dashboard_hidden {
+            if overlay_mgr.is_dashboard_visible() {
+                if !dash_toast_shown {
+                    let id = Toast::new(
+                        ToastTopic::Priority,
+                        Some(Translation::from_translation_key(
+                            "TOAST.STEAMVR_DASH_TITLE",
+                        )),
+                        Translation::from_translation_key("TOAST.STEAMVR_DASH_TEXT"),
+                    )
+                    .with_timeout(300.0) // we'll zero this if dash gets hidden
+                    .submit(&mut app);
+                    dash_toast_id = Some(id);
+                    dash_toast_shown = true;
+                }
+            } else {
+                dashboard_hidden = true;
+                if let Some(id) = dash_toast_id {
+                    Toast::expire_now(&mut app, id);
+                } else if !args.show {
+                    Toast::new(
+                        ToastTopic::Priority,
+                        Some(Translation::from_translation_key(
+                            "TOAST.WAYVR_RUNNING_TITLE",
+                        )),
+                        Translation::from_translation_key("TOAST.WAYVR_RUNNING_TEXT"),
+                    )
+                    .with_timeout(5.0)
+                    .submit(&mut app);
+                }
+            }
+        }
+
         if next_device_update <= Instant::now() {
             let changed = input_source.update_devices(&mut system_mgr, &mut app);
             if changed {
@@ -246,6 +283,13 @@ pub fn openvr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
                 TaskType::OpenVR(task) => match task {
                     OpenVrTask::ColorGain(channel, value) => {
                         let _ = adjust_gain(&mut settings_mgr, channel, value);
+                    }
+                    OpenVrTask::ShowBindingsUI => {
+                        // hide current set because overlay sort order is broken
+                        // and will cover the bindings UI while not taking input
+                        overlays.switch_to_set(&mut app, None, false);
+
+                        input_source.open_bindings(&mut input_mgr);
                     }
                 },
                 #[cfg(feature = "openxr")]
@@ -337,6 +381,9 @@ pub fn openvr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
 
         for o in overlays.values_mut() {
             if o.data.visible {
+                if !(dashboard_hidden || o.data.always_visible) {
+                    continue;
+                }
                 let ShouldRender::Should = o.should_render(&mut app)? else {
                     continue;
                 };
@@ -354,9 +401,12 @@ pub fn openvr_run(args: &Args, params: RunParams) -> Result<(), BackendError> {
         log::trace!("Rendering overlays");
         futures.wait(&app.gfx)?;
 
-        overlays
-            .values_mut()
-            .for_each(|o| o.after_render(universe.clone(), &mut overlay_mgr, &app.gfx));
+        overlays.values_mut().for_each(|o| {
+            if !(dashboard_hidden || o.data.always_visible) {
+                return;
+            }
+            o.after_render(universe.clone(), &mut overlay_mgr, &app.gfx);
+        });
 
         lines.reset();
 

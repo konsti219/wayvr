@@ -197,8 +197,6 @@
 		"SAVE_PLAYSPACE_CENTER_HELP": "Użyj aktualnej przestrzeni gry dla przypisania resetowania przestrzeni.",
 		"RESET_PLAYSPACE_CENTER": "Zresetuj centrum przestrzeni gry",
 		"RESET_PLAYSPACE_CENTER_HELP": "Resetuj aktualny środek przestrzeni gry.",
-		"RESTART_SOFTWARE": "Uruchom ponownie program",
-		"RESTART_SOFTWARE_HELP": "Zastosuj ustawienia wymagające restartu",
 		"ROUND_MULTIPLIER": "Zaokrąglenie krawędzi UI",
 		"SCREEN_RENDER_DOWN": "Renderuj ekran w niższej rozdzielczości",
 		"SCREEN_RENDER_DOWN_HELP": "Pomaga zredukować aliasing na ekranach o wysokiej rozdzielczości",
@@ -208,7 +206,6 @@
 		"SNAP_ANGLE_DEG_HELP": "Chwycone okna przyciągają się do tego kąta na osi pochylenia i obrotu.",
 		"ENABLE_WATCH": "Włącz zegarek",
 		"SETS_ON_WATCH": "Zestawy na zegarku",
-		"SHOW_WELCOME_SCREEN": "Pokaż ekran powitalny",
 		"SKYBOX": "Skymap",
 		"SKYMAP_ALREADY_DOWNLOADED": "Ta skymapa jest już pobrana. Wybierz żądaną akcję.",
 		"SPACE_DRAG": "Przestrzeń gry",
@@ -251,15 +248,22 @@
 		"ROTATIONS": "Obroty HMD",
 		"SESSION_TIME": "Czas sesji",
 		"LENS_SEPARATION_MM": "Rozstaw soczewek (mm)",
-		"DIAGNOSTICS": "Diagnostyka",
 		"MIDDLE_GRABS_SINGLE": "Modyfikator środkowego przycisku chwyta pojedyncze obiekty",
 		"MIDDLE_GRABS_SINGLE_HELP": "Chwytanie z modyfikatorem środkowego przycisku myszy (fioletowy laser)\npochwyci pojedyncze nakładki, a nie cały zestaw",
 		"DIAGNOSTICS_REASON": {
 			"PACTL": "Wymagane do sterowania głośnikami/mikrofonem i przełączania kart dźwiękowych",
 			"CAGE": "Zalecane w przypadku niekompatybilności z niektórymi aplikacjami X11 (tryb kompatybilności)",
 			"XWAYLAND_SATELLITE": "Zalecane, jeśli chcesz uruchamiać aplikacje X11 (Xwayland) w trybie natywnym",
-			"XDG_OPEN": "Wymagane do otwierania linków lub gier Steam"
-		}
+			"XDG_OPEN": "Wymagane do otwierania linków URL lub gier Steam"
+		},
+		"DIAGNOSTICS": {
+			"CPU_ACCESSIBLE_VRAM": "VRAM dostępny dla CPU: {NUM} MiB",
+			"TITLE": "Diagnostyka",
+			"ENABLE_REBAR": "Włącz resizable BAR w ustawieniach BIOS, aby uzyskać optymalną wydajność VR"
+		},
+		"TUTORIAL": "Samouczek",
+		"RESTART_WAYVR": "Zrestartuj WayVR",
+		"CLOSE_WAYVR": "Zamknij WayVR"
 	},
 	"APPLICATION_LAUNCHER": "Launcher aplikacji",
 	"APPLICATION_STARTED": "Uruchomiono aplikację",
@@ -276,7 +280,8 @@
 		"SETTINGS": "Ustawienia dźwięku",
 		"SPEAKERS": "Głośniki",
 		"SPEAKERS_SET_SUCCESSFULLY": "Głośniki ustawione pomyślnie",
-		"VOLUME": "Głośność"
+		"VOLUME": "Głośność",
+		"SWITCH_TO_THIS_DEVICE": "Przełącz na to urządzenie"
 	},
 	"CLOSE_WINDOW": "Zamknij okno",
 	"CREATION_DATE": "Data utworzenia",
@@ -363,5 +368,13 @@
 	"REMOVE_FROM_FAVOURITES": "Usuń z przypiętych aplikacji",
 	"EMPTY": "Puste",
 	"INSTALLED": "Zainstalowano",
-	"NOT_INSTALLED": "Nie zainstalowano"
+	"NOT_INSTALLED": "Nie zainstalowano",
+	"POWER_OPTIONS": {
+		"TITLE": "Opcje zasilania",
+		"SHUTDOWN": "Wyłącz",
+		"SUSPEND": "Uśpij",
+		"SHUTDOWN_ARE_YOU_SURE": "Czy na pewno chcesz wyłączyć komputer?"
+	},
+	"YES": "Tak",
+	"NO": "Nie"
 }

@@ -197,8 +197,6 @@
 		"SAVE_PLAYSPACE_CENTER_HELP": "将当前的活动空间设置为重置活动空间的绑定点。",
 		"RESET_PLAYSPACE_CENTER": "重置活动空间中心",
 		"RESET_PLAYSPACE_CENTER_HELP": "重置之前设置的活动空间中心。",
-		"RESTART_SOFTWARE": "重启软件",
-		"RESTART_SOFTWARE_HELP": "应用需要重启才能生效的设置",
 		"ROUND_MULTIPLIER": "UI 边缘圆角",
 		"SCREEN_RENDER_DOWN": "低分辨率渲染屏幕",
 		"SCREEN_RENDER_DOWN_HELP": "有助于减轻高分辨率屏幕上的锯齿现象",
@@ -208,7 +206,6 @@
 		"SNAP_ANGLE_DEG_HELP": "抓取窗口在俯仰轴和翻滚轴上按此角度对齐。",
 		"ENABLE_WATCH": "启用手表",
 		"SETS_ON_WATCH": "手表显示套装",
-		"SHOW_WELCOME_SCREEN": "显示欢迎界面",
 		"SKYBOX": "天空图",
 		"SKYMAP_ALREADY_DOWNLOADED": "此天空盒已下载。请选择操作。",
 		"SPACE_DRAG": "活动空间",
@@ -251,7 +248,6 @@
 		"ROTATIONS": "HMD 旋转次数",
 		"SESSION_TIME": "会话时间",
 		"LENS_SEPARATION_MM": "瞳距 (mm)",
-		"DIAGNOSTICS": "诊断",
 		"MIDDLE_GRABS_SINGLE": "中键点击修饰键抓取单个对象",
 		"MIDDLE_GRABS_SINGLE_HELP": "使用中键点击修饰键（紫色激光）抓取时\n将抓取单个叠加层，而非整个集合",
 		"DIAGNOSTICS_REASON": {
@@ -259,7 +255,15 @@
 			"CAGE": "若部分 X11 应用程序不兼容，建议开启（兼容模式）",
 			"XWAYLAND_SATELLITE": "如果你想以原生模式运行 X11 (Xwayland) 应用程序，建议开启此项",
 			"XDG_OPEN": "打开 URL 或 Steam 游戏所需"
-		}
+		},
+		"DIAGNOSTICS": {
+			"CPU_ACCESSIBLE_VRAM": "CPU 可访问 VRAM: {NUM} MiB",
+			"TITLE": "诊断",
+			"ENABLE_REBAR": "请在 BIOS 设置中启用 Resizable BAR 以获得最佳 VR 性能"
+		},
+		"TUTORIAL": "教程",
+		"RESTART_WAYVR": "重启 WayVR",
+		"CLOSE_WAYVR": "关闭 WayVR"
 	},
 	"APPLICATION_LAUNCHER": "应用启动器",
 	"APPLICATION_STARTED": "应用程序已启动",
@@ -276,7 +280,8 @@
 		"SETTINGS": "音频设置",
 		"SPEAKERS": "扬声器",
 		"SPEAKERS_SET_SUCCESSFULLY": "扬声器设置成功",
-		"VOLUME": "音量"
+		"VOLUME": "音量",
+		"SWITCH_TO_THIS_DEVICE": "切换至此设备"
 	},
 	"CLOSE_WINDOW": "关闭窗口",
 	"CREATION_DATE": "创建日期",
@@ -363,5 +368,13 @@
 	"REMOVE_FROM_FAVOURITES": "从固定应用中移除",
 	"EMPTY": "暂无",
 	"INSTALLED": "已安装",
-	"NOT_INSTALLED": "未安装"
+	"NOT_INSTALLED": "未安装",
+	"POWER_OPTIONS": {
+		"TITLE": "电源选项",
+		"SHUTDOWN": "关机",
+		"SUSPEND": "暂停",
+		"SHUTDOWN_ARE_YOU_SURE": "确定要关机吗？"
+	},
+	"YES": "确定",
+	"NO": "否"
 }

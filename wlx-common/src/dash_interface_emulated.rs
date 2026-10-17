@@ -6,7 +6,7 @@ use wayvr_ipc::{
 
 use crate::{
 	config::GeneralConfig,
-	dash_interface::{self, ConfigChangeKind, DashInterface, DashPlayspaceTask},
+	dash_interface::{self, ConfigChangeKind, DashBackendTask, DashInterface, DashPlayspaceTask},
 	desktop_finder::DesktopFinder,
 };
 
@@ -219,6 +219,11 @@ impl DashInterface<()> for DashInterfaceEmulated {
 		Ok(())
 	}
 
+	fn backend_task(&mut self, _: &mut (), _: DashBackendTask) -> anyhow::Result<()> {
+		// stub!
+		Ok(())
+	}
+
 	fn desktop_finder<'a>(&'a mut self, _: &'a mut ()) -> &'a mut DesktopFinder {
 		&mut self.desktop_finder
 	}
@@ -230,6 +235,8 @@ impl DashInterface<()> for DashInterfaceEmulated {
 	fn config_changed(&mut self, _: &mut (), _: ConfigChangeKind) {}
 
 	fn restart(&mut self, _data: &mut ()) {}
+
+	fn close(&mut self, _data: &mut ()) {}
 
 	fn toggle_dashboard(&mut self, _data: &mut ()) {}
 

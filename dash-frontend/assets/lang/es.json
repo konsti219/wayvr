@@ -197,8 +197,6 @@
 		"SAVE_PLAYSPACE_CENTER_HELP": "Usa el espacio de juego actual para el comando de reiniciar espacio de juego.",
 		"RESET_PLAYSPACE_CENTER": "Reiniciar centro del espacio de juego",
 		"RESET_PLAYSPACE_CENTER_HELP": "Restablece el centro del espacio de juego definido previamente.",
-		"RESTART_SOFTWARE": "Reiniciar software",
-		"RESTART_SOFTWARE_HELP": "Aplicar ajustes que requieren reiniciar",
 		"ROUND_MULTIPLIER": "Redondeo de bordes de la UI",
 		"SCREEN_RENDER_DOWN": "Renderizar pantalla a resolución menor",
 		"SCREEN_RENDER_DOWN_HELP": "Ayuda con el aliasing en pantallas de alta resolución",
@@ -208,7 +206,6 @@
 		"SNAP_ANGLE_DEG_HELP": "Las ventanas agarradas se ajustan a este ángulo en los ejes de cabeceo y balanceo.",
 		"ENABLE_WATCH": "Habilitar reloj",
 		"SETS_ON_WATCH": "Sets en el reloj",
-		"SHOW_WELCOME_SCREEN": "Mostrar pantalla de bienvenida",
 		"SKYBOX": "Skymap",
 		"SKYMAP_ALREADY_DOWNLOADED": "Este skymap ya está descargado. Selecciona la acción deseada.",
 		"SPACE_DRAG": "Espacio de juego",
@@ -251,7 +248,6 @@
 		"ROTATIONS": "Rotaciones del HMD",
 		"SESSION_TIME": "Tiempo de sesión",
 		"LENS_SEPARATION_MM": "Separación de lentes (mm)",
-		"DIAGNOSTICS": "Diagnósticos",
 		"MIDDLE_GRABS_SINGLE": "El modificador de clic central agarra objetos individuales",
 		"MIDDLE_GRABS_SINGLE_HELP": "Al agarrar con el modificador de clic central (láser púrpura),\nse agarrarán overlays individuales y no el set completo",
 		"DIAGNOSTICS_REASON": {
@@ -259,7 +255,15 @@
 			"CAGE": "Recomendado en caso de incompatibilidad con algunas aplicaciones X11 (Modo de compatibilidad)",
 			"XWAYLAND_SATELLITE": "Recomendado si quieres ejecutar aplicaciones X11 (Xwayland) en modo nativo",
 			"XDG_OPEN": "Necesario para abrir URLs o juegos de Steam"
-		}
+		},
+		"DIAGNOSTICS": {
+			"CPU_ACCESSIBLE_VRAM": "VRAM accesible por CPU: {NUM} MiB",
+			"TITLE": "Diagnósticos",
+			"ENABLE_REBAR": "Activa [resizable bar] en la configuración de la BIOS para un rendimiento óptimo de VR"
+		},
+		"TUTORIAL": "Tutorial",
+		"RESTART_WAYVR": "Reiniciar WayVR",
+		"CLOSE_WAYVR": "Cerrar WayVR"
 	},
 	"APPLICATION_LAUNCHER": "Lanzador de aplicaciones",
 	"APPLICATION_STARTED": "Aplicación iniciada",
@@ -276,7 +280,8 @@
 		"SETTINGS": "Ajustes de audio",
 		"SPEAKERS": "Altavoces",
 		"SPEAKERS_SET_SUCCESSFULLY": "Altavoces configurados correctamente",
-		"VOLUME": "Volumen"
+		"VOLUME": "Volumen",
+		"SWITCH_TO_THIS_DEVICE": "Cambiar a este dispositivo"
 	},
 	"CLOSE_WINDOW": "Cerrar ventana",
 	"CREATION_DATE": "Fecha de creación",
@@ -363,5 +368,13 @@
 	"REMOVE_FROM_FAVOURITES": "Quitar de aplicaciones fijadas",
 	"EMPTY": "Vacío",
 	"INSTALLED": "Instalado",
-	"NOT_INSTALLED": "No instalado"
+	"NOT_INSTALLED": "No instalado",
+	"POWER_OPTIONS": {
+		"TITLE": "Opciones de energía",
+		"SHUTDOWN": "Apagar",
+		"SUSPEND": "Suspender",
+		"SHUTDOWN_ARE_YOU_SURE": "¿Seguro que quieres apagar el ordenador?"
+	},
+	"YES": "Sí",
+	"NO": "No"
 }

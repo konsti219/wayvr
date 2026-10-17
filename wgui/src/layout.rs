@@ -657,16 +657,17 @@ impl Layout {
 		}
 	}
 
-	fn try_recompute_layout(&mut self, mut size: Vec2) -> anyhow::Result<()> {
-		size.x = size.x.round();
-		size.y = size.y.round();
+	pub fn recompute_layout(&mut self, new_size: Option<Vec2>) -> anyhow::Result<()> {
+		let size = match new_size {
+			Some(size) => Vec2::new(size.x.round(), size.y.round()),
+			None => self.content_size,
+		};
 
 		if !self.state.tree.dirty(self.tree_root_node)? && self.prev_size == size {
 			// Nothing to do
 			return Ok(());
 		}
 
-		log::trace!("re-computing layout, size {}x{}", size.x, size.y);
 		self.mark_redraw();
 		self.prev_size = size;
 
@@ -734,7 +735,7 @@ impl Layout {
 			.animations
 			.process(&self.state, &mut self.alterables, params.timestep_alpha);
 		self.process_alterables(alterables)?;
-		self.try_recompute_layout(params.size)?;
+		self.recompute_layout(Some(params.size))?;
 		self.process_pending_components();
 
 		Ok(LayoutUpdateResult {
@@ -747,7 +748,7 @@ impl Layout {
 		self.animations.tick(&self.state, &mut alterables);
 		self.process_pending_widget_ticks(&mut alterables);
 		self.process_alterables(alterables)?;
-		self.try_recompute_layout(self.content_size /* cached value */)?;
+		self.recompute_layout(None)?;
 		self.process_pending_components();
 		Ok(())
 	}

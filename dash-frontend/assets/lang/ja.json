@@ -197,8 +197,6 @@
 		"SAVE_PLAYSPACE_CENTER_HELP": "現在のプレイスペースを、プレイスペースリセットのバインディングに使用する。",
 		"RESET_PLAYSPACE_CENTER": "プレイスペースの中心をリセット",
 		"RESET_PLAYSPACE_CENTER_HELP": "設定済みのプレイスペースの中心点をリセットする。",
-		"RESTART_SOFTWARE": "ソフトウェアを再起動",
-		"RESTART_SOFTWARE_HELP": "再起動が必要な設定を適用する",
 		"ROUND_MULTIPLIER": "UIの角の丸み",
 		"SCREEN_RENDER_DOWN": "低解像度で画面をレンダリング",
 		"SCREEN_RENDER_DOWN_HELP": "高解像度ディスプレイでのジャギーを軽減する",
@@ -208,7 +206,6 @@
 		"SNAP_ANGLE_DEG_HELP": "掴んでいるウィンドウが、ピッチ軸とロール軸でこの角度にスナップします。",
 		"ENABLE_WATCH": "ウォッチを有効にする",
 		"SETS_ON_WATCH": "ウォッチにセットを表示",
-		"SHOW_WELCOME_SCREEN": "ウェルカムスクリーンを表示",
 		"SKYBOX": "スカイマップ",
 		"SKYMAP_ALREADY_DOWNLOADED": "このスカイマップはすでにダウンロード済みです。操作を選択してください。",
 		"SPACE_DRAG": "プレイスペース",
@@ -251,7 +248,6 @@
 		"ROTATIONS": "HMD回転数",
 		"SESSION_TIME": "セッション時間",
 		"LENS_SEPARATION_MM": "レンズ間隔 (mm)",
-		"DIAGNOSTICS": "診断",
 		"MIDDLE_GRABS_SINGLE": "中クリック修飾キーで個別に掴む",
 		"MIDDLE_GRABS_SINGLE_HELP": "中クリック修飾キー（紫色のレーザー）で掴むと、\nセット全体ではなく個別のオーバーレイを掴むことができる",
 		"DIAGNOSTICS_REASON": {
@@ -259,7 +255,15 @@
 			"CAGE": "一部のX11アプリで互換性問題が発生する場合に推奨（互換モード）",
 			"XWAYLAND_SATELLITE": "X11 (Xwayland) アプリケーションをネイティブモードで動作させたい場合に推奨",
 			"XDG_OPEN": "URLやSteamゲームの起動に必要"
-		}
+		},
+		"DIAGNOSTICS": {
+			"CPU_ACCESSIBLE_VRAM": "CPUアクセス可能VRAM: {NUM} MiB",
+			"TITLE": "診断",
+			"ENABLE_REBAR": "VRパフォーマンスを最適化するため、BIOS設定でresizable BARを有効にして下さい"
+		},
+		"TUTORIAL": "チュートリアル",
+		"RESTART_WAYVR": "WayVRを再起動",
+		"CLOSE_WAYVR": "WayVRを閉じる"
 	},
 	"APPLICATION_LAUNCHER": "アプリランチャー",
 	"APPLICATION_STARTED": "アプリが起動しました",
@@ -276,7 +280,8 @@
 		"SETTINGS": "オーディオ設定",
 		"SPEAKERS": "スピーカー",
 		"SPEAKERS_SET_SUCCESSFULLY": "スピーカーを設定完了",
-		"VOLUME": "音量"
+		"VOLUME": "音量",
+		"SWITCH_TO_THIS_DEVICE": "このデバイスに切り替え"
 	},
 	"CLOSE_WINDOW": "ウィンドウを閉じる",
 	"CREATION_DATE": "作成日",
@@ -363,5 +368,13 @@
 	"REMOVE_FROM_FAVOURITES": "固定済みアプリから外す",
 	"EMPTY": "なし",
 	"INSTALLED": "インストール済み",
-	"NOT_INSTALLED": "未インストール"
+	"NOT_INSTALLED": "未インストール",
+	"POWER_OPTIONS": {
+		"TITLE": "電源オプション",
+		"SHUTDOWN": "シャットダウン",
+		"SUSPEND": "サスペンド",
+		"SHUTDOWN_ARE_YOU_SURE": "コンピューターをシャットダウンしてもよろしいですか？"
+	},
+	"YES": "はい",
+	"NO": "いいえ"
 }

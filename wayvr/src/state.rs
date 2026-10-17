@@ -36,12 +36,14 @@ use crate::{
     backend::{input::InputState, task::TaskContainer},
     graphics::WGfxExtras,
     ipc::{event_queue::SyncEventQueue, ipc_server, signal::WayVRSignal},
+    overlays::toast::{ToastQueue, toast_tick},
     subsystem::{dbus::DbusConnector, input::HidWrapper},
 };
 
 pub struct AppState {
     pub session: AppSession,
     pub tasks: TaskContainer,
+    pub toast_queue: ToastQueue,
 
     pub gfx: Arc<WGfx>,
     pub gfx_extras: WGfxExtras,
@@ -173,7 +175,7 @@ impl AppState {
         let mut theme = WguiTheme {
             animation_mult: 1. / session.config.ui_animation_speed,
             rounding_mult: session.config.ui_round_multiplier,
-            ..Default::default()
+            gradient_intensity: session.config.ui_gradient_intensity,
         };
 
         let dbus = DbusConnector::default();
@@ -200,6 +202,7 @@ impl AppState {
 
         let mut app_state = Self {
             tasks,
+            toast_queue: ToastQueue::default(),
             gfx,
             gfx_extras,
             hid_provider,
@@ -272,6 +275,8 @@ impl AppState {
         while self.executor.try_tick() {}
         self.dbus.tick();
 
+        toast_tick(self, self.delta_time);
+
         for toast in self.notifications.drain_pending(&self.session) {
             if matches!(
                 toast.topic(),
@@ -320,6 +325,7 @@ impl AppSession {
         toast_topics.insert(ToastTopic::Error, ToastDisplayMethod::Center);
         toast_topics.insert(ToastTopic::DesktopNotification, ToastDisplayMethod::Center);
         toast_topics.insert(ToastTopic::XSNotification, ToastDisplayMethod::Center);
+        toast_topics.insert(ToastTopic::Priority, ToastDisplayMethod::Center);
 
         config.notification_topics.iter().for_each(|(k, v)| {
             toast_topics.insert(*k, *v);

@@ -92,10 +92,12 @@ impl OverlayLifetime {
         }
     }
 
-    pub fn extend(&mut self, seconds: f32) {
-        if seconds.is_finite() && seconds > 0.0 {
-            self.remaining += seconds;
-            self.duration += seconds;
+    pub fn set_expiry(&mut self, until: Instant) {
+        let now = Instant::now();
+        let remaining = until.duration_since(now).as_secs_f32();
+        if remaining.is_finite() {
+            self.remaining = remaining;
+            self.last_tick = now;
         }
     }
 
@@ -183,9 +185,9 @@ impl OverlayWindowConfig {
         self.tick_lifetime(app)
     }
 
-    pub fn extend_lifetime(&mut self, seconds: f32) {
+    pub fn set_lifetime_expiry(&mut self, until: Instant) {
         if let Some(lifetime) = self.lifetime.as_mut() {
-            lifetime.extend(seconds);
+            lifetime.set_expiry(until);
         }
     }
 
@@ -322,8 +324,10 @@ impl OverlayWindowConfig {
         let watch_normal = state.transform.transform_vector3a(Vec3A::NEG_Z).normalize();
         let dot = to_hmd.dot(watch_normal);
 
-        state.alpha = (dot - app.session.config.watch_view_angle_min)
-            / (app.session.config.watch_view_angle_max - app.session.config.watch_view_angle_min);
+        let range = (app.session.config.watch_view_angle_max
+            - app.session.config.watch_view_angle_min)
+            .max(0.01);
+        state.alpha = (dot - app.session.config.watch_view_angle_min) / range;
         state.alpha += 0.1;
         state.alpha = state.alpha.clamp(0., 1.);
     }

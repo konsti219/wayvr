@@ -197,8 +197,6 @@
 		"SAVE_PLAYSPACE_CENTER_HELP": "Usa il playspace corrente per il comando di reset del playspace.",
 		"RESET_PLAYSPACE_CENTER": "Resetta centro playspace",
 		"RESET_PLAYSPACE_CENTER_HELP": "Rimuovi il centro del playspace impostato precedentemente.",
-		"RESTART_SOFTWARE": "Riavvia software",
-		"RESTART_SOFTWARE_HELP": "Applica le impostazioni che richiedono il riavvio",
 		"ROUND_MULTIPLIER": "Arrotondamento bordi UI",
 		"SCREEN_RENDER_DOWN": "Rendering schermo a risoluzione inferiore",
 		"SCREEN_RENDER_DOWN_HELP": "Riduce l'effetto aliasing sugli schermi ad alta risoluzione",
@@ -208,7 +206,6 @@
 		"SNAP_ANGLE_DEG_HELP": "Le finestre afferrate si allineano a questo angolo sugli assi di beccheggio e rollio.",
 		"ENABLE_WATCH": "Attiva orologio",
 		"SETS_ON_WATCH": "Set sull'orologio",
-		"SHOW_WELCOME_SCREEN": "Mostra schermata di benvenuto",
 		"SKYBOX": "Skymap",
 		"SKYMAP_ALREADY_DOWNLOADED": "Questo skymap è già stato scaricato. Seleziona l'azione desiderata.",
 		"SPACE_DRAG": "Playspace",
@@ -251,7 +248,6 @@
 		"ROTATIONS": "Rotazioni HMD",
 		"SESSION_TIME": "Tempo sessione",
 		"LENS_SEPARATION_MM": "Distanza lenti (mm)",
-		"DIAGNOSTICS": "Diagnostica",
 		"MIDDLE_GRABS_SINGLE": "Il modificatore click centrale afferra singoli oggetti",
 		"MIDDLE_GRABS_SINGLE_HELP": "Afferrando con il modificatore click centrale (laser viola),\nsi afferrano i singoli overlay e non l'intero set",
 		"DIAGNOSTICS_REASON": {
@@ -259,7 +255,15 @@
 			"CAGE": "Consigliato in caso di incompatibilità con alcune applicazioni X11 (Modalità compatibilità)",
 			"XWAYLAND_SATELLITE": "Consigliato per eseguire applicazioni X11 (Xwayland) in modalità nativa",
 			"XDG_OPEN": "Necessario per aprire URL o giochi Steam"
-		}
+		},
+		"DIAGNOSTICS": {
+			"CPU_ACCESSIBLE_VRAM": "VRAM accessibile dalla CPU: {NUM} MiB",
+			"TITLE": "Diagnostica",
+			"ENABLE_REBAR": "Abilita Resizable BAR nelle impostazioni del BIOS per prestazioni VR ottimali"
+		},
+		"TUTORIAL": "Tutorial",
+		"RESTART_WAYVR": "Riavvia WayVR",
+		"CLOSE_WAYVR": "Chiudi WayVR"
 	},
 	"APPLICATION_LAUNCHER": "Avvio applicazioni",
 	"APPLICATION_STARTED": "Applicazione avviata",
@@ -276,7 +280,8 @@
 		"SETTINGS": "Impostazioni audio",
 		"SPEAKERS": "Altoparlanti",
 		"SPEAKERS_SET_SUCCESSFULLY": "Altoparlanti impostati correttamente",
-		"VOLUME": "Volume"
+		"VOLUME": "Volume",
+		"SWITCH_TO_THIS_DEVICE": "Passa a questo dispositivo"
 	},
 	"CLOSE_WINDOW": "Chiudi finestra",
 	"CREATION_DATE": "Data di creazione",
@@ -363,5 +368,13 @@
 	"REMOVE_FROM_FAVOURITES": "Rimuovi dalle app fissate",
 	"EMPTY": "Vuoto",
 	"INSTALLED": "Installato",
-	"NOT_INSTALLED": "Non installato"
+	"NOT_INSTALLED": "Non installato",
+	"POWER_OPTIONS": {
+		"TITLE": "Opzioni di alimentazione",
+		"SHUTDOWN": "Spegni",
+		"SUSPEND": "Sospendi",
+		"SHUTDOWN_ARE_YOU_SURE": "Sei sicuro di voler spegnere il computer?"
+	},
+	"YES": "Sì",
+	"NO": "No"
 }

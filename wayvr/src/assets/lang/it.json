@@ -143,7 +143,11 @@
 		"NO_SET_SELECTED": "Nessun set selezionato.",
 		"ONE_CONTROLLER_ON_FLOOR": "Appoggia un controller sul pavimento!",
 		"NO_KEYMAPS_CONFIGURED": "Nessuna disposizione tastiera configurata",
-		"NO_KEYMAPS_CONFIGURED_HELP": "Consulta wayvr.org per configurare i layout della tastiera!"
+		"NO_KEYMAPS_CONFIGURED_HELP": "Consulta wayvr.org per configurare i layout della tastiera!",
+		"STEAMVR_DASH_TITLE": "Dashboard SteamVR Aperta",
+		"STEAMVR_DASH_TEXT": "Chiudi il pannello di SteamVR per iniziare a usare WayVR.",
+		"WAYVR_RUNNING_TITLE": "WayVR è attivo!",
+		"WAYVR_RUNNING_TEXT": "Controlla il polso per l'orologio, o usa il comando show-hide per iniziare!"
 	},
 	"WATCH": {
 		"ADD_NEW_SET": "Aggiungi un nuovo set",

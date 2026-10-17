@@ -122,7 +122,9 @@ controllers are unavailable.
 Left pinch is grab, right is click.",Tooltip for the handsfree mode dropdown.
 APP_SETTINGS.HANDSFREE_ALT_TAB,App switcher aim,Dropdown/setting in Settings > Features tab. Controls how the alt-tab app switcher is aimed.
 APP_SETTINGS.HANDSFREE_ALT_TAB_HELP,"Hold Super+X, aim at the desired window, then release to switch focus.",Tooltip explaining the handsfree alt-tab behavior.
-APP_SETTINGS.DIAGNOSTICS,"Diagnostics","Tab name for the hardware/software check panel"
+APP_SETTINGS.DIAGNOSTICS.CPU_ACCESSIBLE_VRAM,"CPU-accessible VRAM: {NUM} MiB","Amount of VRAM accessible by the CPU. For example: 256/4096"
+APP_SETTINGS.DIAGNOSTICS.TITLE,"Diagnostics","Tab name for the hardware/software check panel"
+APP_SETTINGS.DIAGNOSTICS.ENABLE_REBAR,"Enable Resizable BAR in the BIOS settings for optimal VR performance","Info shown if resizable bar is disabled in the BIOS. Leave [resizable bar] translation as-is."
 APP_SETTINGS.DIAGNOSTICS_REASON.PACTL,"Required for speaker/microphone control and audio card switching","Reason for why the given software is recommended"
 APP_SETTINGS.DIAGNOSTICS_REASON.CAGE,"Recommended in case if there's an incompatibility with some X11 applications (Compatibility mode)","Reason for why the given software is required or recommended"
 APP_SETTINGS.DIAGNOSTICS_REASON.XWAYLAND_SATELLITE,"Recommended in case if you want to run X11 (Xwayland) applications in native mode","Reason for why the given software is required or recommended"
@@ -206,8 +208,8 @@ APP_SETTINGS.SAVE_PLAYSPACE_CENTER,Save playspace center,"Button in Settings > S
 APP_SETTINGS.SAVE_PLAYSPACE_CENTER_HELP,Use current playspace for reset playspace binding.,"Tooltip for the Save playspace center button. ""Playspace"" was previously translated as ""${DEFINITIONS.PLAYSPACE}""."
 APP_SETTINGS.RESET_PLAYSPACE_CENTER,Reset playspace center,"Button in Settings > Space Drag tab. Clears the previously saved playspace center. ""Playspace"" was previously translated as ""${DEFINITIONS.PLAYSPACE}""."
 APP_SETTINGS.RESET_PLAYSPACE_CENTER_HELP,Clear previously set playspace center.,"Tooltip for the Reset playspace center button. ""Playspace"" was previously translated as ""${DEFINITIONS.PLAYSPACE}""."
-APP_SETTINGS.RESTART_SOFTWARE,Restart software,Button in Settings > Troubleshooting tab. Restarts the WayVR software to apply settings that require a restart.
-APP_SETTINGS.RESTART_SOFTWARE_HELP,Apply settings that require a restart,Tooltip for the Restart software button.
+APP_SETTINGS.RESTART_WAYVR,Restart WayVR,Button in Settings which restarts WayVR
+APP_SETTINGS.CLOSE_WAYVR,Close WayVR,Button in Settings which closes WayVR
 APP_SETTINGS.ROUND_MULTIPLIER,UI Edge roundness,Slider in Settings > Look & Feel tab. Controls how rounded the corners of UI elements appear (range 0.1-5.0).
 APP_SETTINGS.SCREEN_RENDER_DOWN,Render screen at lower resolution,Checkbox in Settings > Miscellaneous tab. Renders the captured desktop screen at a lower resolution to improve performance or reduce aliasing.
 APP_SETTINGS.SCREEN_RENDER_DOWN_HELP,Helps with aliasing on high-res screens,Tooltip for the lower-resolution screen render setting.
@@ -217,7 +219,6 @@ APP_SETTINGS.SNAP_ANGLE_DEG,Window pitch & roll snap angle,Slider in Settings > 
 APP_SETTINGS.SNAP_ANGLE_DEG_HELP,Grabbed windows snap to this angle on pitch and roll axis.,Tooltip for the snap angle setting.
 APP_SETTINGS.ENABLE_WATCH,Enable watch,"Checkbox in Settings > Look & Feel tab. Enables the wrist watch UI element. ""Watch"" was previously translated as ""${DEFINITIONS.WATCH}""."
 APP_SETTINGS.SETS_ON_WATCH,Sets on watch,"Checkbox in Settings > Look & Feel tab. Shows overlay sets on the wrist watch display. ""Watch"" was previously translated as ""${DEFINITIONS.WATCH}"". ""Set"" was previously translated as ""${DEFINITIONS.SET}""."
-APP_SETTINGS.SHOW_WELCOME_SCREEN,Show welcome screen,Checkbox in Settings > Features tab. Controls whether the welcome/tutorial screen is shown on first launch.
 APP_SETTINGS.SKYBOX,Skymap,"Category header in Settings > Skymap tab. Groups skymap-related settings. ""Skymap"" was previously translated as ""${DEFINITIONS.SKYMAP}""."
 APP_SETTINGS.SKYMAP_ALREADY_DOWNLOADED,This skymap is already downloaded. Select desired action.,"Message shown in a dialog when attempting to download a skymap that is already present locally. ""Skymap"" was previously translated as ""${DEFINITIONS.SKYMAP}""."
 APP_SETTINGS.SPACE_DRAG,Playspace,"Category header in Settings. Groups playspace drag/physics settings including reset buttons and gravity. ""Playspace"" was previously translated as ""${DEFINITIONS.PLAYSPACE}""."
@@ -258,6 +259,7 @@ APP_SETTINGS.WHISPER_MODEL,Speech-to-text model,Dropdown label in Settings > Fea
 APP_SETTINGS.WHISPER_MODEL_HELP,"Whisper model to use.
 Larger models produce more accurate
 results, but consume more VRAM.",Tooltip for the speech-to-text model dropdown.
+APP_SETTINGS.TUTORIAL,Tutorial,Tooltip for tutorial button in the main screen.
 APP_SETTINGS.GRID_OPACITY,Floor grid opacity,Slider in Settings > Skybox tab. Controls the opacity of the floor grid when skybox is enabled.
 APP_SETTINGS.GRID_OPACITY_HELP,Opacity of the floor grid when the skymap is enabled,"Tooltip for the floor grid opacity slider. ""Skymap"" was previously translated as ""${DEFINITIONS.SKYMAP}""."
 APP_SETTINGS.XWAYLAND_BY_DEFAULT,Run apps in Compatibility mode by default,Checkbox in Settings > Miscellaneous tab. Launches apps in Cage/compatibility mode by default.
@@ -266,6 +268,7 @@ APP_SETTINGS.CANCEL,Cancel,Button label in the controller bindings editor popup 
 APPLICATION_LAUNCHER,Application launcher,App launcher configuration popup title - appears as the label for the app launch/options dialog.
 APPLICATION_STARTED,Application started,Toast notification shown after a successful app launch.
 APPLICATIONS,Applications,Tab label in the dashboard sidebar for the Apps tab.
+AUDIO.SWITCH_TO_THIS_DEVICE,Switch to this device,Button in the audio settings dialog
 AUDIO.AUTO_SWITCH_TO_VR_AUDIO,Auto-switch to VR audio,Tooltip on the auto-switch audio button in the audio settings popup.
 AUDIO.CARDS,Cards,Button label in the audio settings popup for selecting audio card profiles.
 AUDIO.FAILED_TO_SWITCH_MICROPHONE,Failed to switch microphone,Error toast shown when switching to a VR microphone fails.
@@ -333,6 +336,12 @@ MODIFICATION_DATE,Modification date,Column label in the remote skymap downloader
 MONADO_RUNTIME,Monado runtime,Tab label in the dashboard sidebar for the Monado runtime tab.
 LOADING,Loading...,Label in the loading spinner template used across the UI.
 POPUP_ADD_DISPLAY.RESOLUTION,Resolution,Label for the resolution field in the add display popup.
+POWER_OPTIONS.TITLE,"Power options","A button which allows the user to perform a specific power action"
+POWER_OPTIONS.SHUTDOWN,"Shut down","One of the power options: shuts down the computer"
+POWER_OPTIONS.SUSPEND,"Suspend","One of the power options: suspends the computer"
+POWER_OPTIONS.NOT_SUPPORTED,"Power options require systemd or elogind.","Notification to the user that power options (shutdown and suspend) are not available. 'systemd' and 'elogind' are package names and should not be translated."
+POWER_OPTIONS.SHUTDOWN_ARE_YOU_SURE,"Are you sure you want to turn off your computer?","Question dialog box before shutting down the computer"
+POWER_OPTIONS.SUSPEND_ARE_YOU_SURE,"Are you sure you want to put your computer to sleep?","Question dialog box before putting the computer in sleep mode"
 PROCESS.FORCE_KILL,Force-kill,Tooltip on the kill button in the running games list.
 PROCESS.STOP,Stop,Tooltip on the stop button in the running games list.
 PROCESS_LIST,Process list,Tab name and group box title in the Monado runtime process list section.
@@ -354,3 +363,5 @@ REMOVE_FROM_FAVOURITES,Remove from pinned apps,"Label on the unpin section in th
 EMPTY,Empty,Label shown in the pinned apps section when there are no pinned apps.
 INSTALLED,"Installed","Installation flag (installed/not installed)"
 NOT_INSTALLED,"Not installed","Installation flag (installed/not installed)"
+YES,"Yes","Just a simple 'Yes' message, button in the dialog box"
+NO,"No","Just a simple 'No' message, button in the dialog box"

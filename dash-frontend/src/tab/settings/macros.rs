@@ -76,6 +76,22 @@ pub fn options_diagnostics_row(
 	Ok(())
 }
 
+pub fn options_diagnostics_drm_card(
+	mp: &mut MacroParams,
+	parent: WidgetID,
+	name: &str,
+	info: &str,
+) -> anyhow::Result<()> {
+	let mut params = TemplateParams::new();
+	params.insert("name", name);
+	params.insert("info", info);
+
+	mp.parser_state
+		.instantiate_template(mp.doc_params, "DiagnosticsDrmCard", mp.layout, parent, params)?;
+
+	Ok(())
+}
+
 pub fn options_checkbox(mp: &mut MacroParams, parent: WidgetID, setting: SettingType) -> anyhow::Result<()> {
 	let id = mp.idx.to_string();
 	mp.idx += 1;
@@ -317,7 +333,7 @@ where
 		let tasks = mp.tasks.clone();
 		move |_common, e: ButtonClickEvent| {
 			tasks.push(Task::OpenContextMenu(
-				e.mouse_pos_absolute.unwrap_or_default(),
+				e.mouse_pos_absolute.into(),
 				EnumType::VARIANTS
 					.iter()
 					.filter_map(|item| {
@@ -344,12 +360,12 @@ where
 						let text = &title.text;
 						let translated = if title.translated { "1" } else { "0" };
 
-						Some(context_menu::Cell {
+						Some(context_menu::Cell::Button(context_menu::Button {
 							action_name: Some(format!("{setting_str};{id};{value};{text};{translated}").into()),
 							title,
 							tooltip,
-							attribs: vec![],
-						})
+							..Default::default()
+						}))
 					})
 					.collect(),
 			));
